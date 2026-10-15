@@ -1,0 +1,107 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.servers.name }} servers)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        servers:
+          - name: newest
+            postgres: postgres:17-alpine
+            mariadb: mariadb:13.0
+            sqlserver: mcr.microsoft.com/mssql/server:2022-latest
+          - name: oldest
+            postgres: postgres:13-alpine
+            mariadb: mariadb:11.4
+            sqlserver: mcr.microsoft.com/mssql/server:2017-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Verify
+        run: >-
+          mvn --batch-mode --settings .github/maven-settings.xml --no-transfer-progress verify
+          -Dcinder.test.postgres.image=${{ matrix.servers.postgres }}
+          -Dcinder.test.mariadb.image=${{ matrix.servers.mariadb }}
+          -Dcinder.test.sqlserver.image=${{ matrix.servers.sqlserver }}
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test report
+        uses: mikepenz/action-junit-report@v6
+        if: always()
+        with:
+          report_paths: '**/target/surefire-reports/TEST-*.xml'
+          check_name: tests (${{ matrix.servers.name }} servers)
+          annotate_only: true
+          detailed_summary: true
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: test-reports-${{ matrix.servers.name }}
+          path: '**/target/surefire-reports/**'
+
+      - uses: actions/upload-artifact@v7
+        if: success() && matrix.servers.name == 'newest'
+        with:
+          name: jars
+          path: '*/target/cinder*.jar'
+          if-no-files-found: error
+
+  publish-snapshot:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Read the version
+        id: version
+        run: |
+          echo "value=$(mvn --batch-mode --settings .github/maven-settings.xml --quiet -DforceStdout \
+            help:evaluate -Dexpression=project.version)" >> "$GITHUB_OUTPUT"
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy snapshot
+        if: endsWith(steps.version.outputs.value, '-SNAPSHOT')
+        run: mvn --batch-mode --settings .github/maven-settings.xml --no-transfer-progress -DskipTests deploy
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_TOKEN: ${{ secrets.GITHUB_TOKEN }}

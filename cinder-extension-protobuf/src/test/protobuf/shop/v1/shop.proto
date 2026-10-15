@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package shop.v1;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "leadseal/v1/options.proto";
+
+option java_multiple_files = true;
+option java_package = "dev.horizon.cinder.protobuf.shop";
+
+extend google.protobuf.FieldOptions {
+  bool secret = 58100;
+}
+
+enum State {
+  STATE_UNSPECIFIED = 0;
+  OPEN = 1;
+  PAID = 2;
+}
+
+message Address {
+  string city = 1;
+  string street = 2;
+}
+
+message Customer {
+  option (leadseal.v1.table) = {name: "customers"};
+
+  string id = 1 [(leadseal.v1.column).primary_key = true];
+  string email = 2;
+}
+
+message Order {
+  option (leadseal.v1.table) = {name: "orders"};
+
+  int64 id = 1 [(leadseal.v1.column) = {primary_key: true, integer: {identity: true}}];
+  string customer_id = 2 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Customer"}];
+  State state = 3;
+  google.protobuf.Timestamp create_time = 4 [(leadseal.v1.column) = {name: "created_at", timestamp: {default_now: true}}];
+  google.protobuf.Int64Value discount = 5;
+  repeated string tags = 6;
+  Address address = 7;
+  map<string, int32> counts = 8;
+  bytes token = 9;
+
+  Customer customer = 10 [(leadseal.v1.column).ignore = true];
+  repeated OrderLine lines = 11 [(leadseal.v1.column).ignore = true];
+}
+
+message OrderLine {
+  option (leadseal.v1.table) = {};
+
+  int64 id = 1 [(leadseal.v1.column).primary_key = true];
+  int64 order_id = 2 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Order"}];
+  string product = 3;
+  string note = 4 [(secret) = true];
+}
+
+message Ledger {
+  option (leadseal.v1.table) = {name: "ledger", schema: "audit"};
+
+  int64 id = 1 [(leadseal.v1.column).primary_key = true];
+}
+
+message Token {
+  option (leadseal.v1.table) = {name: "tokens"};
+
+  bytes id = 1 [(leadseal.v1.column).primary_key = true];
+  string label = 2;
+}
