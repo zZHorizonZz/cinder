@@ -11,48 +11,49 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 public abstract class TransactionContractTest extends ContractTest {
 
   @Test
-  void commitsWhenTheWorkSucceeds() {
+  void commitsWhenTheWorkSucceeds() throws TimeoutException {
     onContext(() -> database.transaction(tx -> orders.insert(new Shop.Order(6L, "carl", "OPEN", 1L, day(5)))
         .compose(created -> orders.updateById(1L, Assignments.none().set("state", "PAID")))));
-    assertThat(orders.existsById(6L).await()).isTrue();
-    assertThat(orders.findById(1L).await().orElseThrow().state()).isEqualTo("PAID");
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isTrue();
+    assertThat(orders.findById(1L).await(TIMEOUT).orElseThrow().state()).isEqualTo("PAID");
   }
 
   @Test
-  void rollsBackWhenTheWorkFails() {
+  void rollsBackWhenTheWorkFails() throws TimeoutException {
     Throwable failure = failureOnContext(() -> database.transaction(tx -> orders.insert(new Shop.Order(6L, "carl",
         "OPEN", 1L, day(5))).compose(created -> Future.failedFuture(new IllegalStateException("refused")))));
     assertThat(failure).hasMessageContaining("refused");
-    assertThat(orders.existsById(6L).await()).isFalse();
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isFalse();
   }
 
   @Test
-  void rollsBackWhenTheWorkAsksFor() {
+  void rollsBackWhenTheWorkAsksFor() throws TimeoutException {
     Long created = onContext(() -> database.transaction(tx -> {
       tx.rollbackOnly();
       return orders.insert(new Shop.Order(6L, "carl", "OPEN", 1L, day(5))).map(Shop.Order::id);
     }));
     assertThat(created).isEqualTo(6L);
-    assertThat(orders.existsById(6L).await()).isFalse();
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isFalse();
   }
 
   @Test
-  void rollsBackOnlyTheSavepointOfAFailedInnerWork() {
+  void rollsBackOnlyTheSavepointOfAFailedInnerWork() throws TimeoutException {
     onContext(() -> database.transaction(tx -> orders.insert(new Shop.Order(6L, "carl", "OPEN", 1L, day(5)))
         .compose(created -> database.transaction(inner -> orders.insert(new Shop.Order(7L, "carl", "OPEN", 1L,
             day(5))).compose(again -> orders.insert(new Shop.Order(1L, "carl", "OPEN", 1L, day(5)))))
             .<Object> map(done -> done).recover(failed -> Future.succeededFuture()))));
-    assertThat(orders.existsById(6L).await()).isTrue();
-    assertThat(orders.existsById(7L).await()).isFalse();
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isTrue();
+    assertThat(orders.existsById(7L).await(TIMEOUT)).isFalse();
   }
 
   @Test
-  void runsTheActionsOfACommitAfterIt() {
+  void runsTheActionsOfACommitAfterIt() throws TimeoutException {
     List<String> events = new CopyOnWriteArrayList<>();
     onContext(() -> database.transaction(tx -> {
       tx.onCommit(() -> events.add("committed"));
@@ -62,12 +63,12 @@ public abstract class TransactionContractTest extends ContractTest {
         return orders.insert(new Shop.Order(6L, "carl", "OPEN", 1L, day(5)));
       });
     }));
-    vertx.timer(100).await();
+    vertx.timer(100).await(TIMEOUT);
     assertThat(events).containsExactly("committed", "inner committed");
   }
 
   @Test
-  void runsTheActionsOfARollback() {
+  void runsTheActionsOfARollback() throws TimeoutException {
     List<String> events = new CopyOnWriteArrayList<>();
     onContext(() -> database.transaction(tx -> {
       tx.onCommit(() -> events.add("committed"));
@@ -75,12 +76,12 @@ public abstract class TransactionContractTest extends ContractTest {
       tx.rollbackOnly();
       return Future.succeededFuture();
     }));
-    vertx.timer(100).await();
+    vertx.timer(100).await(TIMEOUT);
     assertThat(events).containsExactly("rolled back");
   }
 
   @Test
-  void runsTheStatementsOfAnActionOutsideTheTransaction() {
+  void runsTheStatementsOfAnActionOutsideTheTransaction() throws TimeoutException {
     Promise<Void> inserted = Promise.promise();
     onContext(() -> database.transaction(tx -> {
       tx.onCommit(() -> vertx.setTimer(100, id -> database.transaction(after -> orders.insert(new Shop.Order(6L,
@@ -91,12 +92,12 @@ public abstract class TransactionContractTest extends ContractTest {
       tx.rollbackOnly();
       return vertx.timer(300);
     }));
-    inserted.future().await();
-    assertThat(orders.existsById(6L).await()).isTrue();
+    inserted.future().await(TIMEOUT);
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isTrue();
   }
 
   @Test
-  void refusesActionsOnceItEnds() {
+  void refusesActionsOnceItEnds() throws TimeoutException {
     List<Transaction> ended = new CopyOnWriteArrayList<>();
     onContext(() -> database.transaction(tx -> {
       ended.add(tx);
@@ -109,7 +110,7 @@ public abstract class TransactionContractTest extends ContractTest {
   }
 
   @Test
-  void runsWithOptions() {
+  void runsWithOptions() throws TimeoutException {
     Long count = onContext(() -> database.transaction(TransactionOptions.defaults()
         .withIsolation(TransactionOptions.Isolation.SERIALIZABLE), tx -> orders.count()));
     assertThat(count).isEqualTo(5L);
@@ -119,17 +120,17 @@ public abstract class TransactionContractTest extends ContractTest {
   }
 
   @Test
-  void locksTheRowsThatItReads() {
+  void locksTheRowsThatItReads() throws TimeoutException {
     Shop.Order locked = onContext(() -> database.transaction(tx -> orders.findAll().where("id = 1")
         .lock(LockMode.UPDATE).single()));
     assertThat(locked.id()).isEqualTo(1L);
   }
 
   @Test
-  void runsOutsideAContext() {
+  void runsOutsideAContext() throws TimeoutException {
     Long count = database.transaction(tx -> orders.insert(new Shop.Order(6L, "carl", "OPEN", 1L, day(5)))
-        .compose(created -> orders.count())).await();
+        .compose(created -> orders.count())).await(TIMEOUT);
     assertThat(count).isEqualTo(6L);
-    assertThat(orders.existsById(6L).await()).isTrue();
+    assertThat(orders.existsById(6L).await(TIMEOUT)).isTrue();
   }
 }

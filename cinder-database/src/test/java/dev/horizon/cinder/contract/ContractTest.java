@@ -9,11 +9,13 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.sqlclient.Pool;
 import io.vertx.sqlclient.Tuple;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.TestInstance;
 public abstract class ContractTest {
 
   protected static final Instant FIRST = Instant.parse("2026-01-01T10:00:00Z");
+  protected static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private static final List<String> TABLES = List.of("files", "items", "orders", "customers");
 
@@ -43,7 +46,7 @@ public abstract class ContractTest {
   }
 
   @BeforeAll
-  void open() {
+  void open() throws TimeoutException {
     TestDatabase tested = testDatabase();
     driver = tested.driver();
     vertx = Vertx.vertx();
@@ -51,7 +54,9 @@ public abstract class ContractTest {
     for (String table : TABLES) {
       sql("DROP TABLE IF EXISTS " + table);
     }
-    tested.schema().forEach(this::sql);
+    for (String statement : tested.schema()) {
+      sql(statement);
+    }
     Database.Builder builder = Database.builder(pool, driver).extension(new Shop());
     extensions().forEach(builder::extension);
     database = builder.build();
@@ -62,17 +67,17 @@ public abstract class ContractTest {
   }
 
   @AfterAll
-  void close() {
+  void close() throws TimeoutException {
     if (pool != null) {
-      pool.close().await();
+      pool.close().await(TIMEOUT);
     }
     if (vertx != null) {
-      vertx.close().await();
+      vertx.close().await(TIMEOUT);
     }
   }
 
   @BeforeEach
-  void load() {
+  void load() throws TimeoutException {
     for (String table : TABLES) {
       sql("DELETE FROM " + table);
     }
@@ -92,17 +97,17 @@ public abstract class ContractTest {
     return FIRST.plusSeconds(days * 86_400L);
   }
 
-  protected void sql(String sql) {
-    pool.query(sql).execute().await();
+  protected void sql(String sql) throws TimeoutException {
+    pool.query(sql).execute().await(TIMEOUT);
   }
 
-  protected <T> T onContext(Supplier<Future<T>> work) {
+  protected <T> T onContext(Supplier<Future<T>> work) throws TimeoutException {
     Promise<T> promise = Promise.promise();
     vertx.getOrCreateContext().runOnContext(ignored -> work.get().onComplete(promise));
-    return promise.future().await();
+    return promise.future().await(TIMEOUT);
   }
 
-  protected Throwable failureOnContext(Supplier<Future<?>> work) {
+  protected Throwable failureOnContext(Supplier<Future<?>> work) throws TimeoutException {
     Promise<Object> promise = Promise.promise();
     vertx.getOrCreateContext().runOnContext(ignored -> work.get().onComplete(done -> {
       if (done.failed()) {
@@ -114,10 +119,10 @@ public abstract class ContractTest {
     return failure(promise.future());
   }
 
-  protected Throwable failure(Future<?> future) {
+  protected Throwable failure(Future<?> future) throws TimeoutException {
     Promise<Throwable> failure = Promise.promise();
     future.onComplete(done -> failure.complete(done.failed() ? done.cause() : null));
-    Throwable cause = failure.future().await();
+    Throwable cause = failure.future().await(TIMEOUT);
     if (cause == null) {
       throw new AssertionError("The future succeeded.");
     }
@@ -128,11 +133,11 @@ public abstract class ContractTest {
     return found.stream().map(Shop.Order::id).toList();
   }
 
-  private void insert(String table, Map<String, Object>... rows) {
+  private void insert(String table, Map<String, Object>... rows) throws TimeoutException {
     RenderedStatement statement = driver.dialect().collection(table).insert(List.of(rows)).build();
     List<Object> params = new ArrayList<>();
     statement.params().forEach(param -> params.add(driver.bind(param)));
-    pool.preparedQuery(statement.text()).execute(Tuple.from(params)).await();
+    pool.preparedQuery(statement.text()).execute(Tuple.from(params)).await(TIMEOUT);
   }
 
   private static Map<String, Object> order(long id, String customer, String state, long total, int version,

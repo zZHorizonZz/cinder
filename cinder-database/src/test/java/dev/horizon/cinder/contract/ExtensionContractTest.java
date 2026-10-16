@@ -19,6 +19,7 @@ import dev.horizon.cinder.TypeCodec;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 public abstract class ExtensionContractTest extends ContractTest {
@@ -91,53 +92,53 @@ public abstract class ExtensionContractTest extends ContractTest {
   }
 
   @Test
-  void codesTheValuesOfAField() {
-    customers.insert(new Shop.Customer("dora", "dora@example.com", "Dora")).await();
-    assertThat(customers.findById("dora").await().orElseThrow().name()).isEqualTo("Dora");
-    assertThat(customers.find(eq("name", "Dora")).list().await()).extracting(Shop.Customer::id)
+  void codesTheValuesOfAField() throws TimeoutException {
+    customers.insert(new Shop.Customer("dora", "dora@example.com", "Dora")).await(TIMEOUT);
+    assertThat(customers.findById("dora").await(TIMEOUT).orElseThrow().name()).isEqualTo("Dora");
+    assertThat(customers.find(eq("name", "Dora")).list().await(TIMEOUT)).extracting(Shop.Customer::id)
         .containsExactly("dora");
   }
 
   @Test
-  void shapesEveryOperationOfAModel() {
-    assertThat(orders.count().await()).isEqualTo(4L);
-    assertThat(orders.findById(4L).await()).isEmpty();
-    assertThat(orders.delete().all().execute().await()).isEqualTo(4L);
+  void shapesEveryOperationOfAModel() throws TimeoutException {
+    assertThat(orders.count().await(TIMEOUT)).isEqualTo(4L);
+    assertThat(orders.findById(4L).await(TIMEOUT)).isEmpty();
+    assertThat(orders.delete().all().execute().await(TIMEOUT)).isEqualTo(4L);
   }
 
   @Test
-  void writesTheRowsOfEveryWriteOfAModel() {
-    orders.updateById(1L, Assignments.none().set("state", "PAID")).await();
-    assertThat(orders.findById(1L).await().orElseThrow().version()).isEqualTo(1);
+  void writesTheRowsOfEveryWriteOfAModel() throws TimeoutException {
+    orders.updateById(1L, Assignments.none().set("state", "PAID")).await(TIMEOUT);
+    assertThat(orders.findById(1L).await(TIMEOUT).orElseThrow().version()).isEqualTo(1);
   }
 
   @Test
-  void interceptsEveryStatement() {
+  void interceptsEveryStatement() throws TimeoutException {
     calls.clear();
-    orders.count().await();
-    customers.findById("anne").await();
+    orders.count().await(TIMEOUT);
+    customers.findById("anne").await(TIMEOUT);
     assertThat(calls).containsExactly("QUERY orders", "QUERY customers");
   }
 
   @Test
-  void runsAPartOfOneOperation() {
+  void runsAPartOfOneOperation() throws TimeoutException {
     Part mugs = new Part() {
       @Override
       public Statement shape(Statement statement, Context<?> context) {
         return statement.where(eq("product", "mug"));
       }
     };
-    assertThat(items.findAll().with(mugs).count().await()).isEqualTo(2L);
+    assertThat(items.findAll().with(mugs).count().await(TIMEOUT)).isEqualTo(2L);
   }
 
   @Test
-  void runsATerminalOfItsOwn() {
+  void runsATerminalOfItsOwn() throws TimeoutException {
     Terminal<Object, Future<String>> sql = new Terminal<>() {
       @Override
       public Future<String> run(Execution<?> execution) {
         return execution.run(execution.statement()).map(rows -> execution.model().table() + ":" + rows.size());
       }
     };
-    assertThat(orders.find(eq("customer_id", "anne")).run(sql).await()).isEqualTo("orders:2");
+    assertThat(orders.find(eq("customer_id", "anne")).run(sql).await(TIMEOUT)).isEqualTo("orders:2");
   }
 }

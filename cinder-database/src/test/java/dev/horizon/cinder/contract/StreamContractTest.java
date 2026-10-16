@@ -8,6 +8,7 @@ import io.vertx.core.Promise;
 import io.vertx.core.streams.ReadStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -16,20 +17,20 @@ public abstract class StreamContractTest extends ContractTest {
 
   @ParameterizedTest
   @ValueSource(ints = { 1, 2, 5, 100 })
-  void streamsEveryRow(int fetch) {
+  void streamsEveryRow(int fetch) throws TimeoutException {
     List<Long> streamed = onContext(() -> collect(orders.findAll().orderBy("id").stream(fetch)));
     assertThat(streamed).containsExactly(1L, 2L, 3L, 4L, 5L);
   }
 
   @Test
-  void streamsInATransaction() {
+  void streamsInATransaction() throws TimeoutException {
     List<Long> streamed = onContext(() -> database.transaction(tx -> collect(orders.find(eq("state", "OPEN"))
         .orderBy("id").stream(2))));
     assertThat(streamed).containsExactly(1L, 3L, 5L);
   }
 
   @Test
-  void streamsAsTheHandlerAsks() {
+  void streamsAsTheHandlerAsks() throws TimeoutException {
     List<Long> streamed = onContext(() -> {
       Promise<List<Long>> done = Promise.promise();
       List<Long> ids = new ArrayList<>();
@@ -48,7 +49,7 @@ public abstract class StreamContractTest extends ContractTest {
   }
 
   @Test
-  void streamsTheRelatedRows() {
+  void streamsTheRelatedRows() throws TimeoutException {
     List<Integer> counts = onContext(() -> {
       Promise<List<Integer>> done = Promise.promise();
       List<Integer> sizes = new ArrayList<>();

@@ -6,14 +6,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.horizon.cinder.Aggregate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 public abstract class AggregateContractTest extends ContractTest {
 
   @Test
-  void measuresTheGroupsOfTheRows() {
+  void measuresTheGroupsOfTheRows() throws TimeoutException {
     List<Aggregate.Group> groups = orders.find(eq("state", "OPEN"))
-        .run(Aggregate.by("customer_id").sum("total_cents").count()).await();
+        .run(Aggregate.by("customer_id").sum("total_cents").count()).await(TIMEOUT);
     assertThat(groups.stream().sorted(Comparator.comparing(group -> (String) group.keys().get("customer_id")))
         .map(group -> group.keys().get("customer_id") + "=" + number(group.values().get("sum_total_cents")) + "/"
             + number(group.values().get("count"))))
@@ -21,9 +22,9 @@ public abstract class AggregateContractTest extends ContractTest {
   }
 
   @Test
-  void measuresEveryRowAsOneGroup() {
+  void measuresEveryRowAsOneGroup() throws TimeoutException {
     List<Aggregate.Group> groups = orders.findAll().run(Aggregate.by().min("total_cents").max("total_cents")
-        .count()).await();
+        .count()).await(TIMEOUT);
     assertThat(groups).hasSize(1);
     assertThat(number(groups.getFirst().values().get("min_total_cents"))).isEqualTo(5000L);
     assertThat(number(groups.getFirst().values().get("max_total_cents"))).isEqualTo(30000L);

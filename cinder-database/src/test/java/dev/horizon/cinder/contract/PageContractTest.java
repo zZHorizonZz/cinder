@@ -10,6 +10,7 @@ import dev.horizon.aquery.aip158.PageRequest;
 import dev.horizon.cinder.Database;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -24,11 +25,11 @@ public abstract class PageContractTest extends ContractTest {
       ''               | customer_id desc, id   | 3 | 5,3,4,1,2
       ''               | create_time desc       | 4 | 5,4,3,2,1
       """)
-  void listsEveryRowPageByPage(String filter, String orderBy, int size, String expected) {
+  void listsEveryRowPageByPage(String filter, String orderBy, int size, String expected) throws TimeoutException {
     List<Long> listed = new ArrayList<>();
     String token = "";
     do {
-      Page<Shop.Order> page = orders.list(new PageRequest(filter, orderBy, size, token)).await();
+      Page<Shop.Order> page = orders.list(new PageRequest(filter, orderBy, size, token)).await(TIMEOUT);
       assertThat(page.items().size()).isLessThanOrEqualTo(size);
       listed.addAll(ids(page.items()));
       token = page.nextPageToken();
@@ -38,28 +39,28 @@ public abstract class PageContractTest extends ContractTest {
   }
 
   @Test
-  void joinsTheFilterOfTheQuery() {
+  void joinsTheFilterOfTheQuery() throws TimeoutException {
     Page<Shop.Order> page = orders.find(eq("customer_id", "anne")).page(new PageRequest("state = \"PAID\"",
-        "", 10, "")).await();
+        "", 10, "")).await(TIMEOUT);
     assertThat(ids(page.items())).containsExactly(2L);
     assertThat(page.nextPageToken()).isEmpty();
   }
 
   @Test
-  void holdsAtMostTheMaxPageSize() {
+  void holdsAtMostTheMaxPageSize() throws TimeoutException {
     Shop.Orders capped = new Shop.Orders(Database.builder(pool, driver).extension(new Shop()).maxPageSize(2)
         .build());
-    Page<Shop.Order> page = capped.list(new PageRequest("", "id", 100, "")).await();
+    Page<Shop.Order> page = capped.list(new PageRequest("", "id", 100, "")).await(TIMEOUT);
     assertThat(ids(page.items())).containsExactly(1L, 2L);
-    assertThat(ids(capped.list(new PageRequest("", "id", 100, page.nextPageToken())).await().items()))
+    assertThat(ids(capped.list(new PageRequest("", "id", 100, page.nextPageToken())).await(TIMEOUT).items()))
         .containsExactly(3L, 4L);
     assertThatThrownBy(() -> Database.builder(pool, driver).maxPageSize(0))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void refusesATokenOfAnotherList() {
-    String token = orders.list(new PageRequest("", "", 2, "")).await().nextPageToken();
+  void refusesATokenOfAnotherList() throws TimeoutException {
+    String token = orders.list(new PageRequest("", "", 2, "")).await(TIMEOUT).nextPageToken();
     assertThat(failure(orders.list(new PageRequest("state = \"OPEN\"", "", 2, token))))
         .isInstanceOf(InvalidQueryException.class);
     assertThat(failure(orders.list(new PageRequest("", "", 2, "forged")))).isInstanceOf(InvalidQueryException.class);

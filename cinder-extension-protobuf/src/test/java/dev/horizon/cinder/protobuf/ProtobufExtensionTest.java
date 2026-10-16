@@ -33,9 +33,11 @@ import io.vertx.sqlclient.Pool;
 import io.vertx.sqlclient.PoolOptions;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +46,8 @@ import org.junit.jupiter.api.TestInstance;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ProtobufExtensionTest {
+
+  private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private static final Attribute<Boolean> SECRET = ProtobufField.attribute(Shop.secret);
 
@@ -124,7 +128,7 @@ class ProtobufExtensionTest {
         "CREATE TABLE order_line (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, product TEXT NOT NULL,"
             + " note TEXT NOT NULL)",
         "CREATE TABLE tokens (id BLOB PRIMARY KEY, label TEXT NOT NULL)")) {
-      pool.query(sql).execute().await();
+      pool.query(sql).execute().await(TIMEOUT);
     }
     database = Database.builder(pool, new SqliteDriver()).extension(new ProtobufExtension()).extension(new Hidden())
         .build();
@@ -134,17 +138,17 @@ class ProtobufExtensionTest {
   }
 
   @AfterAll
-  void close() {
-    pool.close().await();
-    vertx.close().await();
+  void close() throws TimeoutException {
+    pool.close().await(TIMEOUT);
+    vertx.close().await(TIMEOUT);
   }
 
   @BeforeEach
-  void empty() {
+  void empty() throws TimeoutException {
     for (String table : List.of("order_line", "orders", "customers", "tokens")) {
-      pool.query("DELETE FROM " + table).execute().await();
+      pool.query("DELETE FROM " + table).execute().await(TIMEOUT);
     }
-    customers.insert(Customer.newBuilder().setId("anne").setEmail("anne@example.com").build()).await();
+    customers.insert(Customer.newBuilder().setId("anne").setEmail("anne@example.com").build()).await(TIMEOUT);
   }
 
   @Test
@@ -160,47 +164,47 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void writesAndReadsEveryKindOfField() {
+  void writesAndReadsEveryKindOfField() throws TimeoutException {
     Order order = Order.newBuilder().setCustomerId("anne").setState(State.PAID)
         .setCreateTime(Timestamp.newBuilder().setSeconds(1_767_261_600L).setNanos(123_456_000))
         .setDiscount(Int64Value.of(250)).addAllTags(List.of("gift", "rush"))
         .setAddress(Address.newBuilder().setCity("Brno").setStreet("Main")).putCounts("mug", 2)
         .setToken(ByteString.copyFromUtf8("token")).build();
-    Order created = orders.insert(order).await();
+    Order created = orders.insert(order).await(TIMEOUT);
     assertThat(created.getId()).isPositive();
     assertThat(created.toBuilder().clearId().build()).isEqualTo(order);
-    assertThat(orders.findById(created.getId()).await()).contains(created);
+    assertThat(orders.findById(created.getId()).await(TIMEOUT)).contains(created);
   }
 
   @Test
-  void leavesTheFieldsThatTheDatabaseFillsToIt() {
+  void leavesTheFieldsThatTheDatabaseFillsToIt() throws TimeoutException {
     Instant before = Instant.now().minusSeconds(1);
-    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await();
+    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
     assertThat(created.getId()).isPositive();
     assertThat(Instant.ofEpochSecond(created.getCreateTime().getSeconds())).isAfter(before);
     assertThat(created.hasDiscount()).isFalse();
   }
 
   @Test
-  void filtersByTheValuesOfAField() {
-    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await();
-    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.PAID).build()).await();
-    assertThat(orders.find(eq("state", State.PAID)).count().await()).isEqualTo(1L);
-    assertThat(orders.find("state = \"OPEN\"").count().await()).isEqualTo(1L);
-    assertThatThrownBy(() -> orders.find("state = \"LOST\"").count().await())
+  void filtersByTheValuesOfAField() throws TimeoutException {
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.PAID).build()).await(TIMEOUT);
+    assertThat(orders.find(eq("state", State.PAID)).count().await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.find("state = \"OPEN\"").count().await(TIMEOUT)).isEqualTo(1L);
+    assertThatThrownBy(() -> orders.find("state = \"LOST\"").count().await(TIMEOUT))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
-  void readsTheRelatedMessages() {
-    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await();
+  void readsTheRelatedMessages() throws TimeoutException {
+    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
     lines.insertAll(List.of(OrderLine.newBuilder().setId(1).setOrderId(created.getId()).setProduct("mug")
         .setNote("fragile").build(),
         OrderLine.newBuilder().setId(2).setOrderId(created.getId()).setProduct("cup")
             .build()))
-        .await();
+        .await(TIMEOUT);
     Order found = orders.find(eq("id", created.getId())).include("customer").include("lines", rows -> rows
-        .orderBy("id")).single().await();
+        .orderBy("id")).single().await(TIMEOUT);
     assertThat(found.getCustomer().getEmail()).isEqualTo("anne@example.com");
     assertThat(found.getLinesList()).extracting(OrderLine::getProduct).containsExactly("mug", "cup");
     assertThat(found.getLines(0).getNote()).isEqualTo("fragile");
@@ -212,16 +216,16 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void pagesByAKeyOfBytes() {
+  void pagesByAKeyOfBytes() throws TimeoutException {
     Tokens tokens = new Tokens(database);
     for (int i = 1; i <= 3; i++) {
       tokens.insert(Token.newBuilder().setId(ByteString.copyFrom(new byte[] { (byte) i, 0 })).setLabel("t" + i)
-          .build()).await();
+          .build()).await(TIMEOUT);
     }
     List<String> labels = new ArrayList<>();
     String next = "";
     do {
-      Page<Token> page = tokens.list(new PageRequest("", "", 1, next)).await();
+      Page<Token> page = tokens.list(new PageRequest("", "", 1, next)).await(TIMEOUT);
       page.items().forEach(token -> labels.add(token.getLabel()));
       next = page.nextPageToken();
     } while (!next.isEmpty());
@@ -229,10 +233,10 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void givesTheCustomOptionsAsAttributes() {
-    lines.insert(OrderLine.newBuilder().setId(3).setOrderId(1).setProduct("plate").setNote("glass").build()).await();
-    Object stored = pool.query("SELECT note FROM order_line").execute().await().iterator().next().getValue(0);
+  void givesTheCustomOptionsAsAttributes() throws TimeoutException {
+    lines.insert(OrderLine.newBuilder().setId(3).setOrderId(1).setProduct("plate").setNote("glass").build()).await(TIMEOUT);
+    Object stored = pool.query("SELECT note FROM order_line").execute().await(TIMEOUT).iterator().next().getValue(0);
     assertThat(stored).isEqualTo("hidden:glass");
-    assertThat(lines.findById(3L).await().orElseThrow().getNote()).isEqualTo("glass");
+    assertThat(lines.findById(3L).await(TIMEOUT).orElseThrow().getNote()).isEqualTo("glass");
   }
 }
