@@ -13,6 +13,7 @@ import dev.horizon.cinder.Field;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.Part;
 import dev.horizon.cinder.TypeCodec;
+import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,7 +29,8 @@ import java.util.function.Function;
  * The statements of an operation name the fields of the model in their expressions, and the columns in their clauses
  * of names, such as {@code RETURNING} and {@code SET}. The rewrite, after the parts, turns the fields of the
  * expressions into their columns and binds the values of the filters through the codecs of their fields. A name that
- * is a field and another field's column means the field.
+ * is a field and another field's column means the field. A key of a JSON object names a field that the database
+ * stores as a JSON object, such as a map or a message.
  */
 final class Table<E> {
 
@@ -231,6 +233,14 @@ final class Table<E> {
     return switch (expression) {
       case null -> null;
       case Expression.Column column -> Expression.column(binding(column.name()).column());
+      case Expression.JsonKey key -> {
+        Binding binding = binding(key.column());
+        if (binding.stored() != JsonObject.class) {
+          throw new IllegalArgumentException("The field " + key.column() + " of the model of the table " + model.table()
+              + " is not stored as a JSON object, so it has no key " + key.key() + ".");
+        }
+        yield new Expression.JsonKey(binding.column(), key.key());
+      }
       case Expression.Plus plus -> new Expression.Plus(expression(plus.left()), expression(plus.right()));
       case Expression.Aggregate aggregate -> new Expression.Aggregate(aggregate.function(),
           expression(aggregate.argument()));

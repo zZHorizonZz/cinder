@@ -1,5 +1,6 @@
 package dev.horizon.cinder.protobuf;
 
+import static dev.horizon.basepoint.Expression.key;
 import static dev.horizon.basepoint.Filter.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -193,6 +194,20 @@ class ProtobufExtensionTest {
     assertThat(orders.find("state = \"OPEN\"").count().await(TIMEOUT)).isEqualTo(1L);
     assertThatThrownBy(() -> orders.find("state = \"LOST\"").count().await(TIMEOUT))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void filtersByAKeyOfAMapOrAMessage() throws TimeoutException {
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).putCounts("mug", 2)
+        .setAddress(Address.newBuilder().setCity("Brno")).build()).await(TIMEOUT);
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).putCounts("cup", 1)
+        .setAddress(Address.newBuilder().setCity("Prague")).build()).await(TIMEOUT);
+    assertThat(orders.find(eq(key("address", "city"), "Brno")).count().await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.find("address.city = Prague").count().await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.find("counts.mug = 2").count().await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.find("counts:cup").count().await(TIMEOUT)).isEqualTo(1L);
+    assertThatThrownBy(() -> orders.find("state.name = OPEN").count().await(TIMEOUT))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("is not stored as a JSON object");
   }
 
   @Test

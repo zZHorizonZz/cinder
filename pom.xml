@@ -46,7 +46,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.release>25</maven.compiler.release>
     <aquery.version>0.3.1-SNAPSHOT</aquery.version>
-    <basepoint.version>0.1.1-SNAPSHOT</basepoint.version>
+    <basepoint.version>0.2.1-SNAPSHOT</basepoint.version>
     <leadseal.version>0.2.0</leadseal.version>
     <protobuf.version>4.36.2</protobuf.version>
     <vertx.version>5.2.0</vertx.version>

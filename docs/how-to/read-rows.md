@@ -26,6 +26,11 @@ messages, with the filters of `dev.horizon.basepoint.Filter` imported statically
    A value of a text filter must be a value of its field. A filter such as `total_cents = 10.5` fails with an
    `IllegalArgumentException`.
 
+   A field that the database stores as a JSON object, such as a protobuf map or message, can be filtered by one of its
+   keys, whose values compare as text: `labels.env = "prod"`, or `eq(key("labels", "env"), "prod")` with Basepoint's
+   `Expression.key`. `labels:env` finds the rows whose map has the key `env`. A key of any other field fails with an
+   `IllegalArgumentException`.
+
 3. Read one row, a count or whether rows exist:
 
    ```java

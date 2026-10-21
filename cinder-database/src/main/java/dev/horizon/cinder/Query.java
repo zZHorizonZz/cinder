@@ -21,7 +21,9 @@ public interface Query<E> extends Operation<E, Query<E>> {
   /**
    * Adds a condition. The conditions of a query must all hold.
    *
-   * @param filter the condition, whose names are fields of the model, such as {@code gt("total_cents", 100)}
+   * @param filter the condition, whose names are fields of the model, such as {@code gt("total_cents", 100)}, or a
+   * field that the database stores as a JSON object and one of its keys, such as
+   * {@code eq(key("labels", "env"), "prod")}
    * @return the query, with the condition
    */
   Query<E> where(Filter filter);
@@ -29,9 +31,11 @@ public interface Query<E> extends Operation<E, Query<E>> {
   /**
    * Adds the condition of an AIP-160 filter. The conditions of a query must all hold.
    *
-   * @param filter the filter, whose names are fields of the model, such as {@code state = "OPEN"}
+   * @param filter the filter, whose names are fields of the model, such as {@code state = "OPEN"}, or a field that the
+   * database stores as a JSON object and one of its keys, such as {@code labels.env = "prod"}
    * @return the query, with the condition
-   * @throws IllegalArgumentException if the filter is not valid, or names a field that the model does not have
+   * @throws IllegalArgumentException if the filter is not valid, names a field that the model does not have, or names
+   * a key of a field that the database does not store as a JSON object
    */
   Query<E> where(String filter);
 
