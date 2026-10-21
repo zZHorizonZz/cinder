@@ -127,14 +127,14 @@ Future<List<Order>> open = orders.find("state = \"OPEN\" AND total_cents > 10000
 
 ## Modules
 
-| Module                      | Package                        | Contents                                                       |
-| --------------------------- | ------------------------------ | -------------------------------------------------------------- |
-| `cinder-database`           | `dev.horizon.cinder`           | Models, backends, operations, extensions, and the database     |
-| `cinder-database-postgres`  | `dev.horizon.cinder.postgres`  | `PostgresDriver`, on the PostgreSQL client of Vert.x           |
-| `cinder-database-mariadb`   | `dev.horizon.cinder.mariadb`   | `MariaDbDriver`, on the MySQL client of Vert.x                 |
-| `cinder-database-sqlserver` | `dev.horizon.cinder.sqlserver` | `SqlServerDriver`, on the SQL Server client of Vert.x          |
-| `cinder-database-sqlite`    | `dev.horizon.cinder.sqlite`    | `SqliteDriver`, on the JDBC client of Vert.x                   |
-| `cinder-extension-protobuf` | `dev.horizon.cinder.protobuf`  | The models of protobuf messages, and the codec of their fields |
+| Module                      | Package                        | Contents                                                                         |
+| --------------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| `cinder-database`           | `dev.horizon.cinder`           | Models, backends, operations, extensions, and the database                       |
+| `cinder-database-postgres`  | `dev.horizon.cinder.postgres`  | `PostgresDriver`, on the PostgreSQL client of Vert.x                             |
+| `cinder-database-mariadb`   | `dev.horizon.cinder.mariadb`   | `MariaDbDriver`, on the MySQL client of Vert.x                                   |
+| `cinder-database-sqlserver` | `dev.horizon.cinder.sqlserver` | `SqlServerDriver`, on the SQL Server client of Vert.x                            |
+| `cinder-database-sqlite`    | `dev.horizon.cinder.sqlite`    | `SqliteDriver`, on the JDBC client of Vert.x                                     |
+| `cinder-extension-protobuf` | `dev.horizon.cinder.protobuf`  | The models of protobuf messages, the codec of their fields, and `ProtobufMapper` |
 
 Each driver module depends on `cinder-database`. Add only the driver that you use. On the module path, each module is
 named after its package, such as `dev.horizon.cinder.postgres`.

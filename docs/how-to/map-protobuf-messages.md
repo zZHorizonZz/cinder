@@ -83,6 +83,34 @@ Attribute<Boolean> obfuscated = ProtobufField.attribute(ObfuscationProto.obfusca
 boolean secret = field.attribute(obfuscated).orElse(false);
 ```
 
+## Convert the values of your API
+
+A value of your API that a row holds in its own form, such as a state that is a string column, gets a
+`ProtobufMapper`. It reads the value from the columns of the row and writes it back, so only the mapper knows how the
+value is stored:
+
+```java
+final class StateMapper implements ProtobufMapper<OrderState, OrderOrBuilder, Order.Builder> {
+
+  @Override
+  public OrderState read(OrderOrBuilder row) {
+    return switch (row.getState()) {
+      case "OPEN" -> OrderState.OPEN;
+      case "CANCELLED" -> OrderState.CANCELLED;
+      default -> throw new IllegalStateException("The order " + row.getId() + " is " + row.getState());
+    };
+  }
+
+  @Override
+  public Order.Builder write(Order.Builder row, OrderState state) {
+    return row.setState(state.name());
+  }
+}
+```
+
+`read` throws `IllegalStateException` when the columns hold a value that the mapper does not know, such as a state
+that a newer version of your application wrote.
+
 ## Related resources
 
 - [Protobuf types](../reference/protobuf-types.md)
