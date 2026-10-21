@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/zZHorizonZz/cinder/compare/v0.2.0...v0.3.0) (2026-10-21)
+
+
+### Features
+
+* ProtobufMapper converts a value of an API to the columns of a protobuf row, and back. ([e846e70](https://github.com/zZHorizonZz/cinder/commit/e846e70e081451ec3e923da199516aa11555fae6))
+
 ## [0.2.0](https://github.com/zZHorizonZz/cinder/compare/v0.1.0...v0.2.0) (2026-10-21)
 
 
