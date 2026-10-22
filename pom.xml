@@ -54,7 +54,7 @@
     <testcontainers.version>2.0.5</testcontainers.version>
     <sqlite-jdbc.version>3.53.4.0</sqlite-jdbc.version>
     <mariadb-client.version>3.5.10</mariadb-client.version>
-    <mssql-jdbc.version>13.6.0.jre11</mssql-jdbc.version>
+    <mssql-jdbc.version>13.6.1.jre11</mssql-jdbc.version>
     <junit.version>6.1.3</junit.version>
     <assertj.version>3.27.7</assertj.version>
   </properties>
