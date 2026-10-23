@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/zZHorizonZz/cinder/compare/v0.3.0...v0.3.1) (2026-10-23)
+
+
+### Fixes
+
+* refuse a text filter or order that names a field of no column as an invalid query, not an illegal argument. ([7756158](https://github.com/zZHorizonZz/cinder/commit/7756158897f14b7c80ac472bfb4e8257b21a528f))
+* store an empty binary value as null, on every database, as SQL Server cannot take a zero-length one. ([abdbf34](https://github.com/zZHorizonZz/cinder/commit/abdbf346e660172515101daf0c98deb1530da877))
+
 ## [0.3.0](https://github.com/zZHorizonZz/cinder/compare/v0.2.0...v0.3.0) (2026-10-21)
 
 
