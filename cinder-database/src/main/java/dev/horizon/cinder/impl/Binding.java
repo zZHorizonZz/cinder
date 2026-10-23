@@ -58,7 +58,14 @@ record Binding(Field<?, ?> field, Class<?> type, List<TypeCodec> codecs, List<Ty
     if (value == null) {
       return driver.bindNull(stored);
     }
-    return driver.bind(store(type.isInstance(value) ? value : coerce(driver, value)));
+    Object held = store(type.isInstance(value) ? value : coerce(driver, value));
+    // An empty binary value is stored as null on every database. On SQL Server it has to be: vertx-mssql-client
+    // declares a zero-length binary parameter with a maximum length of 0, which SQL Server refuses with TDS error
+    // 8016. Fix that upstream in DataType.BIGVARBINARY of vertx-mssql-client if possible.
+    if (held instanceof byte[] bytes && bytes.length == 0) {
+      return driver.bindNull(stored);
+    }
+    return driver.bind(held);
   }
 
   /** Reads a value of the column, or of the JSON of an include, as a value of the field. */

@@ -24,6 +24,14 @@ public abstract class WriteContractTest extends ContractTest {
   }
 
   @Test
+  void writesAnEmptyBinaryValueAsNull() throws TimeoutException {
+    files.insertAll(List.of(new Shop.File(1L, new byte[0]), new Shop.File(2L, new byte[] { 1, 2 }))).await(TIMEOUT);
+    files.updateById(2L, Assignments.none().set("content", new byte[0])).await(TIMEOUT);
+    assertThat(files.findAll().orderBy("id").list().await(TIMEOUT)).extracting(Shop.File::content).containsOnlyNulls()
+        .hasSize(2);
+  }
+
+  @Test
   void insertsAnEntityAndGivesItAsStored() throws TimeoutException {
     Shop.Order created = orders.insert(new Shop.Order(6L, "carl", "OPEN", 1200L, day(5))).await(TIMEOUT);
     assertThat(created).isEqualTo(new Shop.Order(6L, "carl", "OPEN", 1200L, 0, day(5), null, null, List.of()));

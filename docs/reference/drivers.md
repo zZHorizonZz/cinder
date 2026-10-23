@@ -10,6 +10,9 @@ transactions. The Basepoint dialect of the driver writes the SQL.
 | SQL Server | `cinder-database-sqlserver` | `new SqlServerDriver()` | `vertx-mssql-client` | `MSSQLBuilder.pool()`  |
 | SQLite     | `cinder-database-sqlite`    | `new SqliteDriver()`    | `vertx-jdbc-client`  | `JDBCPool.pool(...)`   |
 
+On every database, an empty binary value is stored as null: a binary column holds a value or no value, never an
+empty one.
+
 ## PostgreSQL
 
 - **Times:** `timestamptz` values in UTC.
