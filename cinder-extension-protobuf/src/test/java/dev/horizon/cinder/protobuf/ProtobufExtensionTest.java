@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
+import dev.horizon.aquery.InvalidQueryException;
 import dev.horizon.aquery.aip158.Page;
 import dev.horizon.aquery.aip158.PageRequest;
 import dev.horizon.cinder.Attribute;
@@ -125,7 +126,7 @@ class ProtobufExtensionTest {
         "CREATE TABLE customers (id TEXT PRIMARY KEY, email TEXT NOT NULL)",
         "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id TEXT NOT NULL, state TEXT NOT NULL,"
             + " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), discount INTEGER,"
-            + " tags TEXT NOT NULL, address TEXT, counts TEXT NOT NULL, token BLOB NOT NULL)",
+            + " tags TEXT NOT NULL, address TEXT, counts TEXT NOT NULL, token BLOB)",
         "CREATE TABLE order_line (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, product TEXT NOT NULL,"
             + " note TEXT NOT NULL)",
         "CREATE TABLE tokens (id BLOB PRIMARY KEY, label TEXT NOT NULL)")) {
@@ -207,7 +208,7 @@ class ProtobufExtensionTest {
     assertThat(orders.find("counts.mug = 2").count().await(TIMEOUT)).isEqualTo(1L);
     assertThat(orders.find("counts:cup").count().await(TIMEOUT)).isEqualTo(1L);
     assertThatThrownBy(() -> orders.find("state.name = OPEN").count().await(TIMEOUT))
-        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("is not stored as a JSON object");
+        .isInstanceOf(InvalidQueryException.class).hasMessageContaining("is not stored as a JSON object");
   }
 
   @Test
