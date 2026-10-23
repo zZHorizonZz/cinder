@@ -49,12 +49,12 @@ Future<List<Order>> open = orders.find("state = \"OPEN\" AND total_cents > 10000
      <dependency>
        <groupId>dev.horizon</groupId>
        <artifactId>cinder-database-postgres</artifactId>
-       <version>0.3.1-SNAPSHOT</version>
+       <version>0.3.1</version>
      </dependency>
      <dependency>
        <groupId>dev.horizon</groupId>
        <artifactId>cinder-extension-protobuf</artifactId>
-       <version>0.3.1-SNAPSHOT</version>
+       <version>0.3.1</version>
      </dependency>
    </dependencies>
    ```
