@@ -65,4 +65,13 @@ public abstract class PageContractTest extends ContractTest {
         .isInstanceOf(InvalidQueryException.class);
     assertThat(failure(orders.list(new PageRequest("", "", 2, "forged")))).isInstanceOf(InvalidQueryException.class);
   }
+
+  @Test
+  void refusesAFilterOrAnOrderOfAFieldThatTheTableDoesNotHave() throws TimeoutException {
+    assertThat(failure(orders.list(new PageRequest("budget > 3", "", 2, "")))).isInstanceOf(
+        InvalidQueryException.class);
+    assertThat(failure(orders.list(new PageRequest("", "budget", 2, "")))).isInstanceOf(InvalidQueryException.class);
+    assertThat(failure(orders.list(new PageRequest("", "state.name", 2, "")))).isInstanceOf(
+        InvalidQueryException.class);
+  }
 }

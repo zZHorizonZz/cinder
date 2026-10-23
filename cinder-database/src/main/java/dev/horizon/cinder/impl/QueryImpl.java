@@ -1,11 +1,13 @@
 package dev.horizon.cinder.impl;
 
+import dev.horizon.aquery.aip132.InvalidOrderByException;
 import dev.horizon.aquery.aip132.Order;
 import dev.horizon.aquery.aip132.OrderBy;
 import dev.horizon.aquery.aip157.ReadMask;
 import dev.horizon.aquery.aip158.Page;
 import dev.horizon.aquery.aip158.PageRequest;
 import dev.horizon.aquery.aip158.PageToken;
+import dev.horizon.aquery.aip160.InvalidFilterException;
 import dev.horizon.basepoint.Clause;
 import dev.horizon.basepoint.Direction;
 import dev.horizon.basepoint.Expression;
@@ -146,7 +148,13 @@ final class QueryImpl<E> implements Query<E> {
 
   @Override
   public Query<E> where(String filter) {
-    return where(Filter.of(filter));
+    Filter parsed = Filter.of(filter);
+    try {
+      table.check(parsed);
+    } catch (IllegalArgumentException unknown) {
+      throw new InvalidFilterException("%s", unknown.getMessage());
+    }
+    return with(steps.withFilters(List.of(parsed)));
   }
 
   @Override
@@ -403,8 +411,13 @@ final class QueryImpl<E> implements Query<E> {
     }
     List<Clause.Sort> sorts = new ArrayList<>();
     for (OrderBy term : Order.parse(orderBy)) {
-      sorts.add(sortOf(table.binding(term.fieldPath(), "An order").name(), term.descending() ? Direction.DESC
-          : Direction.ASC));
+      Binding binding;
+      try {
+        binding = table.binding(term.fieldPath(), "An order");
+      } catch (IllegalArgumentException unknown) {
+        throw new InvalidOrderByException("%s", unknown.getMessage());
+      }
+      sorts.add(sortOf(binding.name(), term.descending() ? Direction.DESC : Direction.ASC));
     }
     return sorts;
   }

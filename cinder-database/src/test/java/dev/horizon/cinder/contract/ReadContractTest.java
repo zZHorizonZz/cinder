@@ -10,6 +10,7 @@ import static dev.horizon.basepoint.Filter.or;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.horizon.aquery.InvalidQueryException;
 import dev.horizon.basepoint.Direction;
 import dev.horizon.basepoint.Filter;
 import dev.horizon.cinder.Sort;
@@ -122,7 +123,7 @@ public abstract class ReadContractTest extends ContractTest {
   @Test
   void refusesAFieldThatTheModelDoesNotHave() {
     assertThatThrownBy(() -> orders.find(eq("colour", "red"))).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> orders.findAll().orderBy("colour")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> orders.findAll().orderBy("colour")).isInstanceOf(InvalidQueryException.class);
     assertThatThrownBy(() -> orders.findAll().sort(Sort.by("colour"))).isInstanceOf(IllegalArgumentException.class);
   }
 
