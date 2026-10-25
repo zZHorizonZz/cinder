@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.horizon</groupId>
   <artifactId>cinder-parent</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Cinder</name>
   <description>Backends for entities on SQL databases, over Basepoint and Vert.x, with protobuf messages as an
