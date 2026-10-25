@@ -56,32 +56,32 @@ class ProtobufExtensionTest {
   private record Orders(Database database) implements Backend<Order, Long> {
 
     @Override
-    public Class<Order> type() {
-      return Order.class;
+    public Order prototype() {
+      return Order.getDefaultInstance();
     }
   }
 
   private record Customers(Database database) implements Backend<Customer, String> {
 
     @Override
-    public Class<Customer> type() {
-      return Customer.class;
+    public Customer prototype() {
+      return Customer.getDefaultInstance();
     }
   }
 
   private record Tokens(Database database) implements Backend<Token, ByteString> {
 
     @Override
-    public Class<Token> type() {
-      return Token.class;
+    public Token prototype() {
+      return Token.getDefaultInstance();
     }
   }
 
   private record Lines(Database database) implements Backend<OrderLine, Long> {
 
     @Override
-    public Class<OrderLine> type() {
-      return OrderLine.class;
+    public OrderLine prototype() {
+      return OrderLine.getDefaultInstance();
     }
   }
 
@@ -155,14 +155,14 @@ class ProtobufExtensionTest {
 
   @Test
   void mapsAMessageToItsTable() {
-    Model<Order> model = database.model(Order.class);
+    Model<Order> model = database.model(Order.getDefaultInstance());
     assertThat(model.table()).isEqualTo("orders");
     assertThat(model.field("create_time").orElseThrow().column()).isEqualTo("created_at");
     assertThat(model.key()).extracting(Field::name).containsExactly("id");
     assertThat(model.relations()).containsExactly(
-        new Relation<>("customer", Customer.class, Relation.Shape.ONE, List.of("customer_id"), List.of("id")),
-        new Relation<>("lines", OrderLine.class, Relation.Shape.MANY, List.of("id"), List.of("order_id")));
-    assertThat(database.model(OrderLine.class).table()).isEqualTo("order_line");
+        new Relation<>("customer", Customer.getDefaultInstance(), Relation.Shape.ONE, List.of("customer_id"), List.of("id")),
+        new Relation<>("lines", OrderLine.getDefaultInstance(), Relation.Shape.MANY, List.of("id"), List.of("order_id")));
+    assertThat(database.model(OrderLine.getDefaultInstance()).table()).isEqualTo("order_line");
   }
 
   @Test
@@ -228,7 +228,7 @@ class ProtobufExtensionTest {
 
   @Test
   void namesTheTableInItsSchema() {
-    assertThat(database.model(Ledger.class).table()).isEqualTo("audit.ledger");
+    assertThat(database.model(Ledger.getDefaultInstance()).table()).isEqualTo("audit.ledger");
   }
 
   @Test

@@ -75,8 +75,8 @@ message Category {
    public record CategoriesBackend(Database database) implements GraphBackend<Category, String> {
 
      @Override
-     public Class<Category> type() {
-       return Category.class;
+     public Category prototype() {
+       return Category.getDefaultInstance();
      }
    }
 

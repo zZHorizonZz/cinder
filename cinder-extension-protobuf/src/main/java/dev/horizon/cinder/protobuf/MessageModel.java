@@ -145,13 +145,13 @@ final class MessageModel<M extends Message> implements ProtobufModel<M> {
   private Relation<?> relation(Descriptor descriptor, FieldDescriptor field) {
     Descriptor target = field.getMessageType();
     List<Relation<?>> found = new ArrayList<>();
-    Class<?> targetType = prototype.newBuilderForType().newBuilderForField(field).build().getClass();
+    Message related = prototype.newBuilderForType().newBuilderForField(field).getDefaultInstanceForType();
     Relation.Shape shape = field.isRepeated() ? Relation.Shape.MANY : Relation.Shape.ONE;
     for (List<List<String>> key : foreignKeys(descriptor, target)) {
-      found.add(new Relation<>(field.getName(), targetType, shape, key.get(0), key.get(1)));
+      found.add(new Relation<>(field.getName(), related, shape, key.get(0), key.get(1)));
     }
     for (List<List<String>> key : foreignKeys(target, descriptor)) {
-      found.add(new Relation<>(field.getName(), targetType, shape, key.get(1), key.get(0)));
+      found.add(new Relation<>(field.getName(), related, shape, key.get(1), key.get(0)));
     }
     if (found.size() != 1) {
       throw new IllegalArgumentException("The relation " + field.getFullName() + " needs one foreign key between "

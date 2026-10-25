@@ -66,28 +66,21 @@ public final class ProtobufExtension implements Extension, ModelSource {
   }
 
   /**
-   * Gives the model of a message type.
+   * Gives the model of a message's type.
    *
-   * @param type the type, such as {@code Order.class}
+   * @param prototype a message of the type, such as {@code Order.getDefaultInstance()}
    * @param <E> the type
-   * @return a {@link ProtobufModel}, or empty if the type is not a message with the {@code leadseal.v1.table} option
+   * @return a {@link ProtobufModel}, or empty if the entity is not a message with the {@code leadseal.v1.table} option
    * @throws IllegalArgumentException if the message has no primary key, or a relation has no foreign key to join it
    */
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  public <E> Optional<Model<E>> model(Class<E> type) {
-    if (!Message.class.isAssignableFrom(type)) {
+  public <E> Optional<Model<E>> model(E prototype) {
+    if (!(prototype instanceof Message message)
+        || !message.getDescriptorForType().getOptions().hasExtension(OptionsProto.table)) {
       return Optional.empty();
     }
-    Message prototype;
-    try {
-      prototype = (Message) type.getMethod("getDefaultInstance").invoke(null);
-    } catch (ReflectiveOperationException failed) {
-      return Optional.empty();
-    }
-    if (!prototype.getDescriptorForType().getOptions().hasExtension(OptionsProto.table)) {
-      return Optional.empty();
-    }
-    return Optional.of((Model<E>) new MessageModel((Class) type, prototype));
+    Message empty = message.getDefaultInstanceForType();
+    return Optional.of((Model<E>) new MessageModel(empty.getClass(), empty));
   }
 }

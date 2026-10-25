@@ -9,10 +9,12 @@ A `Model` maps a type of entity to a table: the table name, the fields and their
 and how to build an entity from the values of a row. Filters, orders and masks name the fields of the model, and the
 model maps each one to its column. A filter can also name a column, such as `created_at` for the field `create_time`.
 
-A `ModelSource` gives the model of a type. A source has one method, `<E> Optional<Model<E>> model(Class<E> type)`.
-The database asks the sources of its extensions in order, and uses the first model it gets. The protobuf extension is
-the model source of messages with the `leadseal.v1.table` option. A module for Java records or for another schema
-language is a model source in the same way.
+A `ModelSource` gives the model of a type. A source has one method, `<E> Optional<Model<E>> model(E prototype)`: it
+gets an entity of the type, such as `Order.getDefaultInstance()`, and reads what it needs from the entity, never from
+the class, so it reads the types of a module that does not open its packages. The database asks the sources of its
+extensions in order, and uses the first model it gets. The protobuf extension is the model source of messages with the
+`leadseal.v1.table` option. A module for Java records or for another schema language is a model source in the same
+way.
 
 A model has no state of its own. The database resolves each model once, with the codecs of its fields and the parts
 of its operations.
@@ -25,14 +27,14 @@ For what each driver does, refer to [Drivers](../reference/drivers.md).
 
 ## Backends
 
-A `Backend<E, K>` names its type and its database:
+A `Backend<E, K>` gives an entity of its type and its database:
 
 ```java
 public record OrdersBackend(Database database) implements Backend<Order, Long> {
 
   @Override
-  public Class<Order> type() {
-    return Order.class;
+  public Order prototype() {
+    return Order.getDefaultInstance();
   }
 }
 ```
@@ -49,12 +51,12 @@ public Future<Boolean> cancel(long id, Instant now) {
 }
 ```
 
-The key `K` is the value of the key field. For a table whose key has more than one column, the key is a record whose
-components name the key fields. For a table keyed by `group_id` and `user_id`:
+The key `K` is the value of the key field. The operations by key, such as `findById` and `deleteById`, take a table
+whose key has one column. A backend of a table whose key has more columns selects its rows with a filter on each of
+them. For a table keyed by `group_id` and `user_id`:
 
 ```java
-public record MembershipKey(String groupId, String userId) {
-}
+find(and(eq("group_id", group), eq("user_id", user))).first()
 ```
 
 ## Operations

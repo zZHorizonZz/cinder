@@ -7,13 +7,13 @@ import java.util.List;
  * fields of the row. An include reads the related rows into the field of the relation.
  *
  * @param name the name of the relation, which is the field that holds the related rows, such as {@code items}
- * @param target the type of the related entities
+ * @param target an entity of the related type, which names its model
  * @param shape whether the field holds one related entity or a list of them
  * @param fields the fields of this model, such as {@code id}
  * @param references the fields of the target that match them, such as {@code order_id}
  * @param <T> the type of the related entities
  */
-public record Relation<T>(String name, Class<T> target, Shape shape, List<String> fields, List<String> references) {
+public record Relation<T>(String name, T target, Shape shape, List<String> fields, List<String> references) {
 
   /**
    * How many related rows a row has.

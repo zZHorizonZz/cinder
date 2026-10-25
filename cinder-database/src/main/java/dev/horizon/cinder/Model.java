@@ -1,8 +1,6 @@
 package dev.horizon.cinder;
 
 import dev.horizon.basepoint.Filter;
-import java.lang.reflect.RecordComponent;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,37 +91,18 @@ public interface Model<E> {
   /**
    * Gives the filter that selects the row of a key.
    *
-   * @param id the value of a single key field, or a record whose components name the key fields, such as
-   * {@code orderId} for the field {@code order_id}
-   * @return the filter, with a condition per key field
-   * @throws IllegalArgumentException if the key does not match the key fields
+   * @param id the value of the key field
+   * @return the filter
+   * @throws IllegalArgumentException if the key has more than one field: select such a row with a filter on each of
+   * them
    */
   default Filter keyFilter(Object id) {
     List<Field<E, ?>> key = key();
-    if (!(id instanceof Record record)) {
-      if (key.size() != 1) {
-        throw new IllegalArgumentException("The key of the table " + table() + " has " + key.size() + " fields, so"
-            + " it is a record whose components name them.");
-      }
-      return Filter.eq(key.getFirst().name(), id);
+    if (key.size() != 1) {
+      throw new IllegalArgumentException("The key of the table " + table() + " has " + key.size() + " fields, so a"
+          + " filter on each of them selects its rows, not a single key.");
     }
-    RecordComponent[] components = record.getClass().getRecordComponents();
-    if (components.length != key.size()) {
-      throw new IllegalArgumentException("The key " + record + " has " + components.length + " components, but the"
-          + " key of the table " + table() + " has " + key.size() + " fields.");
-    }
-    List<Filter> terms = new ArrayList<>();
-    for (RecordComponent component : components) {
-      Field<E, ?> field = key.stream().filter(candidate -> candidate.name().replace("_", "")
-          .equalsIgnoreCase(component.getName())).findFirst().orElseThrow(() -> new IllegalArgumentException("The"
-              + " key of the table " + table() + " has no field " + component.getName() + "."));
-      try {
-        terms.add(Filter.eq(field.name(), component.getAccessor().invoke(record)));
-      } catch (ReflectiveOperationException failed) {
-        throw new IllegalArgumentException("The key " + record + " cannot be read.", failed);
-      }
-    }
-    return Filter.and(terms.toArray(Filter[]::new));
+    return Filter.eq(key.getFirst().name(), id);
   }
 
   /**

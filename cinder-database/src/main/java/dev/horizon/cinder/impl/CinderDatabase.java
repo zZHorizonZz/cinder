@@ -74,8 +74,8 @@ final class CinderDatabase implements Database {
 
   @Override
   @SuppressWarnings("unchecked")
-  public <E> Model<E> model(Class<E> type) {
-    return (Model<E>) models.computeIfAbsent(type, this::resolve);
+  public <E> Model<E> model(E prototype) {
+    return (Model<E>) models.computeIfAbsent(prototype.getClass(), type -> resolve(prototype));
   }
 
   @Override
@@ -229,18 +229,18 @@ final class CinderDatabase implements Database {
         : interceptors.get(index).intercept(call, next -> intercept(next, index + 1, last)));
   }
 
-  private <E> Model<E> resolve(Class<?> type) {
+  private <E> Model<E> resolve(E prototype) {
     for (Extension extension : extensions) {
       for (ModelSource source : extension.models()) {
-        @SuppressWarnings("unchecked")
-        Optional<Model<E>> model = source.model((Class<E>) type);
+        Optional<Model<E>> model = source.model(prototype);
         if (model.isPresent()) {
           return model.get();
         }
       }
     }
-    throw new IllegalArgumentException("No model source of the database knows the type " + type.getName()
-        + ". Add the extension of its models, such as the protobuf extension for messages.");
+    throw new IllegalArgumentException("No model source of the database knows the type "
+        + prototype.getClass().getName() + ". Add the extension of its models, such as the protobuf extension for"
+        + " messages.");
   }
 
   /**

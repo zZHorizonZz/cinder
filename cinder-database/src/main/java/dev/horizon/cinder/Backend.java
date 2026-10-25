@@ -9,12 +9,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The rows of one type of entity. An implementation gives the type and the database, and adds the operations of its
- * own domain. Every other operation has a default, which runs on the database.
+ * The rows of one type of entity. An implementation gives an entity of the type and the database, and adds the
+ * operations of its own domain. Every other operation has a default, which runs on the database.
  *
  * <p>
- * The key is the value of a single key field, or a record whose components name the key fields, for a table whose
- * key has more than one column.
+ * The key is the value of the key field. The operations by key take a table whose key has one column; a backend of a
+ * table whose key has more columns selects its rows with a filter on each of them, such as
+ * {@code find(and(eq("group_id", group), eq("user_id", user)))}.
  *
  * <p>
  * An extension adds operations of its own as an interface that extends this one, with default methods, such as a
@@ -26,11 +27,11 @@ import java.util.Optional;
 public interface Backend<E, K> {
 
   /**
-   * Gives the type of the entities, which names the model of the backend.
+   * Gives an entity of the type, which names the model of the backend.
    *
-   * @return the type, such as {@code Order.class}
+   * @return the entity, such as {@code Order.getDefaultInstance()}
    */
-  Class<E> type();
+  E prototype();
 
   /**
    * Gives the database of the rows.
@@ -46,7 +47,7 @@ public interface Backend<E, K> {
    * @throws IllegalArgumentException if no source of the database gives a model of the type
    */
   default Model<E> model() {
-    return database().model(type());
+    return database().model(prototype());
   }
 
   /**

@@ -82,14 +82,14 @@ public interface Database {
   }
 
   /**
-   * Gives the model of a type, from the first model source that knows it.
+   * Gives the model of an entity's type, from the first model source that knows it.
    *
-   * @param type the type of the entities, such as {@code Order.class}
+   * @param prototype an entity of the type, such as {@code Order.getDefaultInstance()}
    * @param <E> the type of the entities
    * @return the model
    * @throws IllegalArgumentException if no model source knows the type
    */
-  <E> Model<E> model(Class<E> type);
+  <E> Model<E> model(E prototype);
 
   /**
    * Starts a query of every row of a model.

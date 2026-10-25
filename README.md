@@ -98,14 +98,14 @@ Future<List<Order>> open = orders.find("state = \"OPEN\" AND total_cents > 10000
        .build();
    ```
 
-5. Write a backend. It names its type and its database, and gets every common operation from `Backend`:
+5. Write a backend. It gives an entity of its type and its database, and gets every common operation from `Backend`:
 
    ```java
    public record OrdersBackend(Database database) implements Backend<Order, Long> {
 
      @Override
-     public Class<Order> type() {
-       return Order.class;
+     public Order prototype() {
+       return Order.getDefaultInstance();
      }
 
      public Future<List<Order>> open() {
