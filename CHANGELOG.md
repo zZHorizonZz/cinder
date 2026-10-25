@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/zZHorizonZz/cinder/compare/v0.3.1...v0.4.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* Backend.type() is now Backend.prototype(), which gives an entity of the type. Database.model and ModelSource.model take an entity, and Relation.target is an entity of the related type. The operations by key take a table whose key has one column; a record of the key fields is no longer a key, so select such a row with a filter on each of them.
+
+### Features
+
+* name a backend's model by an entity of its type, not its class, and select a row of a key of several columns by a filter. ([c176bdf](https://github.com/zZHorizonZz/cinder/commit/c176bdf14f3c13f106468e755dac3a3ecf258455))
+
 ## [0.3.1](https://github.com/zZHorizonZz/cinder/compare/v0.3.0...v0.3.1) (2026-10-23)
 
 
