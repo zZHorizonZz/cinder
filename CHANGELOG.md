@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/zZHorizonZz/cinder/compare/v0.4.0...v0.4.1) (2026-10-25)
+
+
+### Fixes
+
+* depend on aquery 0.3.0 and basepoint 0.3.1, not on a snapshot of aquery. ([bd5ec14](https://github.com/zZHorizonZz/cinder/commit/bd5ec148f778e20d9ec05409164c9ff267c4d1a7))
+
 ## [0.4.0](https://github.com/zZHorizonZz/cinder/compare/v0.3.1...v0.4.0) (2026-10-25)
 
 
