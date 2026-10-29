@@ -49,7 +49,7 @@
     <basepoint.version>0.3.1</basepoint.version>
     <leadseal.version>0.2.0</leadseal.version>
     <protobuf.version>4.36.2</protobuf.version>
-    <vertx.version>5.2.1</vertx.version>
+    <vertx.version>5.2.2</vertx.version>
 
     <testcontainers.version>2.0.5</testcontainers.version>
     <sqlite-jdbc.version>3.53.4.0</sqlite-jdbc.version>
