@@ -1,19 +1,29 @@
 package dev.horizon.cinder.contract;
 
-import static dev.horizon.basepoint.Filter.and;
-import static dev.horizon.basepoint.Filter.eq;
-import static dev.horizon.basepoint.Filter.gt;
-import static dev.horizon.basepoint.Filter.in;
-import static dev.horizon.basepoint.Filter.isNull;
-import static dev.horizon.basepoint.Filter.lt;
-import static dev.horizon.basepoint.Filter.or;
+import static dev.horizon.basepoint.expression.Expression.add;
+import static dev.horizon.basepoint.expression.Expression.column;
+import static dev.horizon.basepoint.expression.Expression.concat;
+import static dev.horizon.basepoint.expression.Expression.lower;
+import static dev.horizon.basepoint.expression.Expression.upper;
+import static dev.horizon.basepoint.expression.Expression.value;
+import static dev.horizon.basepoint.expression.Expression.when;
+import static dev.horizon.basepoint.filter.Filter.and;
+import static dev.horizon.basepoint.filter.Filter.eq;
+import static dev.horizon.basepoint.filter.Filter.gt;
+import static dev.horizon.basepoint.filter.Filter.in;
+import static dev.horizon.basepoint.filter.Filter.isNull;
+import static dev.horizon.basepoint.filter.Filter.lt;
+import static dev.horizon.basepoint.filter.Filter.or;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import dev.horizon.aquery.InvalidQueryException;
 import dev.horizon.basepoint.Direction;
-import dev.horizon.basepoint.Filter;
+import dev.horizon.basepoint.filter.Filter;
 import dev.horizon.cinder.Sort;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -63,11 +73,48 @@ public abstract class ReadContractTest extends ContractTest {
   @CsvSource(delimiter = '|', textBlock = """
       total_cents desc                 | 3,5,1,2,4
       customer_id, total_cents desc    | 1,2,3,4,5
-      state desc, id                   | 2,1,3,5,4
       create_time desc                 | 5,4,3,2,1
       """)
   void sortsAsAnOrder(String orderBy, String expected) throws TimeoutException {
     assertThat(ids(orders.findAll().orderBy(orderBy).list().await(TIMEOUT))).isEqualTo(longs(expected));
+  }
+
+  @Test
+  void findsTheRowsOfAFunctionOfAField() throws TimeoutException {
+    assertThat(ids(orders.find(eq(upper(column("customer_id")), "ANNE")).orderBy("id").list().await(TIMEOUT)))
+        .isEqualTo(longs("1,2"));
+    assertThat(ids(orders.find(eq(concat(value("customer-"), column("customer_id")), "customer-beth"))
+        .orderBy("id").list().await(TIMEOUT))).isEqualTo(longs("3,4"));
+  }
+
+  @Test
+  void findsTheRowsOfAFunctionOfAFieldOfAnotherColumnName() throws TimeoutException {
+    assertThat(ids(orders.find(gt(add(column("create_time"), Duration.ofDays(1)), day(4))).orderBy("id").list()
+        .await(TIMEOUT))).isEqualTo(longs("5"));
+    assertThat(ids(orders.find(eq(when(gt("create_time", day(2)), value("late"), value("early")), "late"))
+        .orderBy("id").list().await(TIMEOUT))).isEqualTo(longs("4,5"));
+  }
+
+  @Test
+  void refusesAFunctionOfAFieldThatTheModelDoesNotHave() {
+    assertThatThrownBy(() -> orders.find(eq(lower(column("budget")), "x"))).isInstanceOf(
+        IllegalArgumentException.class).hasMessageContaining("has no field budget");
+    assertThatThrownBy(() -> orders.find(eq(when(gt("budget", 1), value("a"), value("b")), "a"))).isInstanceOf(
+        IllegalArgumentException.class).hasMessageContaining("has no field budget");
+  }
+
+  @Test
+  void sortsAnEnumByTheOrderOfItsValuesWhereTheDatabaseStoresEnums() throws TimeoutException {
+    assumeTrue(testDatabase().storesEnums());
+
+    assertThat(ids(orders.findAll().orderBy("state desc, id").list().await(TIMEOUT))).isEqualTo(longs("4,2,1,3,5"));
+  }
+
+  @Test
+  void sortsAnEnumAsTextWhereTheDatabaseStoresText() throws TimeoutException {
+    assumeFalse(testDatabase().storesEnums());
+
+    assertThat(ids(orders.findAll().orderBy("state desc, id").list().await(TIMEOUT))).isEqualTo(longs("2,1,3,5,4"));
   }
 
   @Test

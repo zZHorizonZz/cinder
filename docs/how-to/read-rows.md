@@ -2,7 +2,7 @@
 
 A query reads the rows of a model. It starts from a backend, with `findAll()`, `find(filter)` or a method that
 finds by key, and runs with a terminal method, such as `list`. The examples use an `OrdersBackend` of `Order`
-messages, with the filters of `dev.horizon.basepoint.Filter` imported statically.
+messages, with the filters of `dev.horizon.basepoint.filter.Filter` imported statically.
 
 ## Find rows
 
@@ -25,6 +25,10 @@ messages, with the filters of `dev.horizon.basepoint.Filter` imported statically
 
    A value of a text filter must be a value of its field. A filter such as `total_cents = 10.5` fails with an
    `IllegalArgumentException`.
+
+   An enum field sorts by the order of its values on PostgreSQL and MariaDB, which store it as an enum type, and
+   by the text of its values on SQL Server and SQLite. `orderBy("state")` gives `OPEN` before `CANCELLED` on the
+   first two, if the enum lists `OPEN` first, and `CANCELLED` first on the others.
 
    A field that the database stores as a JSON object, such as a protobuf map or message, can be filtered by one of its
    keys, whose values compare as text: `labels.env = "prod"`, or `eq(key("labels", "env"), "prod")` with Basepoint's

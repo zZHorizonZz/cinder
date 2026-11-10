@@ -1,6 +1,6 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.statement.Statement;
 import io.vertx.core.Future;
 import io.vertx.core.streams.ReadStream;
 import io.vertx.sqlclient.Row;

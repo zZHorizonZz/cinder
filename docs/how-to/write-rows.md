@@ -2,7 +2,7 @@
 
 A backend has a method for each common write. For anything more, an insert, an update or a delete is an operation of
 its own, like a query. The examples use an `OrdersBackend` of `Order` messages, with the filters of
-`dev.horizon.basepoint.Filter` imported statically.
+`dev.horizon.basepoint.filter.Filter` imported statically.
 
 ## Write with the common methods
 

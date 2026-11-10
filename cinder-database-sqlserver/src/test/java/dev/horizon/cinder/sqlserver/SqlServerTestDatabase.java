@@ -46,4 +46,9 @@ final class SqlServerTestDatabase implements TestDatabase {
             + " quantity INT NOT NULL, position INT NOT NULL)",
         "CREATE TABLE files (id BIGINT PRIMARY KEY, content VARBINARY(MAX))");
   }
+
+  @Override
+  public boolean storesEnums() {
+    return false;
+  }
 }

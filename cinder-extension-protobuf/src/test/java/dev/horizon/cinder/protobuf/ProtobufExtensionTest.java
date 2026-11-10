@@ -1,7 +1,7 @@
 package dev.horizon.cinder.protobuf;
 
-import static dev.horizon.basepoint.Expression.key;
-import static dev.horizon.basepoint.Filter.eq;
+import static dev.horizon.basepoint.expression.Expression.key;
+import static dev.horizon.basepoint.filter.Filter.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

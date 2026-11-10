@@ -1,12 +1,41 @@
 package dev.horizon.cinder.impl;
 
 import dev.horizon.aquery.aip132.FieldPath;
-import dev.horizon.basepoint.Clause;
 import dev.horizon.basepoint.CollectionReference;
-import dev.horizon.basepoint.Expression;
-import dev.horizon.basepoint.Filter;
-import dev.horizon.basepoint.Statement;
 import dev.horizon.basepoint.UpdateQuery;
+import dev.horizon.basepoint.expression.Aggregate;
+import dev.horizon.basepoint.expression.Arithmetic;
+import dev.horizon.basepoint.expression.As;
+import dev.horizon.basepoint.expression.Call;
+import dev.horizon.basepoint.expression.Case;
+import dev.horizon.basepoint.expression.Column;
+import dev.horizon.basepoint.expression.Concat;
+import dev.horizon.basepoint.expression.Expression;
+import dev.horizon.basepoint.expression.JsonKey;
+import dev.horizon.basepoint.expression.Length;
+import dev.horizon.basepoint.expression.Shift;
+import dev.horizon.basepoint.expression.Value;
+import dev.horizon.basepoint.filter.And;
+import dev.horizon.basepoint.filter.Between;
+import dev.horizon.basepoint.filter.Compare;
+import dev.horizon.basepoint.filter.Filter;
+import dev.horizon.basepoint.filter.In;
+import dev.horizon.basepoint.filter.IsNull;
+import dev.horizon.basepoint.filter.Like;
+import dev.horizon.basepoint.filter.Match;
+import dev.horizon.basepoint.filter.Not;
+import dev.horizon.basepoint.filter.Or;
+import dev.horizon.basepoint.filter.Text;
+import dev.horizon.basepoint.statement.Assignment;
+import dev.horizon.basepoint.statement.Clause;
+import dev.horizon.basepoint.statement.GroupBy;
+import dev.horizon.basepoint.statement.Having;
+import dev.horizon.basepoint.statement.OrderBy;
+import dev.horizon.basepoint.statement.Select;
+import dev.horizon.basepoint.statement.Sort;
+import dev.horizon.basepoint.statement.Statement;
+import dev.horizon.basepoint.statement.Values;
+import dev.horizon.basepoint.statement.Where;
 import dev.horizon.cinder.Assignments;
 import dev.horizon.cinder.Driver;
 import dev.horizon.cinder.Field;
@@ -19,6 +48,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -166,7 +196,7 @@ final class Table<E> {
       set = set.set(binding.column(), switch (entry.getValue()) {
         case Assignments.SetValue value -> binding.bind(driver, value.value());
         case Assignments.Compute compute -> compute.expression();
-        case Assignments.Increment increment -> new Expression.Plus(Expression.column(binding.name()),
+        case Assignments.Increment increment -> Expression.add(Expression.column(binding.name()),
             Expression.value(driver.bind(increment.amount())));
         case Assignments.Unset unset -> binding.field().nullable() ? binding.bind(driver, null) : new Default();
       });
@@ -196,34 +226,36 @@ final class Table<E> {
 
   private Filter rewrite(Filter filter, boolean bind) {
     return switch (filter) {
-      case Filter.Compare compare -> new Filter.Compare(expression(compare.left()), compare.operator(),
+      case Compare compare -> new Compare(expression(compare.left()), compare.operator(),
           value(compare.left(), compare.right(), bind));
-      case Filter.IsNull isNull -> new Filter.IsNull(expression(isNull.operand()), isNull.negated());
-      case Filter.In in -> new Filter.In(expression(in.operand()), bind ? in.values().stream()
+      case IsNull isNull -> new IsNull(expression(isNull.operand()), isNull.negated());
+      case In in -> new In(expression(in.operand()), bind ? in.values().stream()
           .map(value -> bind(in.operand(), value)).toList() : in.values(), in.negated());
-      case Filter.Between between -> new Filter.Between(expression(between.operand()),
+      case Between between -> new Between(expression(between.operand()),
           value(between.operand(), between.low(), bind), value(between.operand(), between.high(), bind));
-      case Filter.Match match -> new Filter.Match(expression(match.operand()), match.parts(), match.negated());
-      case Filter.Like like -> new Filter.Like(expression(like.operand()), like.pattern());
-      case Filter.And and -> new Filter.And(and.operands().stream().map(operand -> rewrite(operand, bind)).toList());
-      case Filter.Or or -> new Filter.Or(or.operands().stream().map(operand -> rewrite(operand, bind)).toList());
-      case Filter.Not not -> new Filter.Not(rewrite(not.operand(), bind));
+      case Match match -> new Match(expression(match.operand()), match.parts(), match.negated());
+      case Like like -> new Like(expression(like.operand()), like.pattern());
+      case And and -> new And(and.operands().stream().map(operand -> rewrite(operand, bind)).toList());
+      case Or or -> new Or(or.operands().stream().map(operand -> rewrite(operand, bind)).toList());
+      case Not not -> new Not(rewrite(not.operand(), bind));
+      case Text text -> rewrite(text.translate(Set.of()), bind);
       default -> filter;
     };
   }
 
   private Clause clause(Clause clause) {
     return switch (clause) {
-      case Clause.Select select -> new Clause.Select(select.distinct(), select.columns().stream()
+      case Select select -> new Select(select.distinct(), select.columns().stream()
           .map(this::expression).toList());
-      case Clause.Where where -> new Clause.Where(rewrite(where.filter(), true));
-      case Clause.GroupBy groupBy -> new Clause.GroupBy(groupBy.columns().stream().map(this::expression).toList());
-      case Clause.Having having -> new Clause.Having(rewrite(having.filter(), true));
-      case Clause.OrderBy orderBy -> new Clause.OrderBy(orderBy.sorts().stream()
-          .map(sort -> new Clause.Sort(expression(sort.value()), sort.direction())).toList());
-      case Clause.Set set -> new Clause.Set(set.assignments().stream()
-          .map(assignment -> new Clause.Assignment(assignment.column(), expression(assignment.value()))).toList());
-      case Clause.Values values -> new Clause.Values(values.rows().stream()
+      case Where where -> new Where(rewrite(where.filter(), true));
+      case GroupBy groupBy -> new GroupBy(groupBy.columns().stream().map(this::expression).toList());
+      case Having having -> new Having(rewrite(having.filter(), true));
+      case OrderBy orderBy -> new OrderBy(orderBy.sorts().stream()
+          .map(sort -> new Sort(expression(sort.value()), sort.direction())).toList());
+      case dev.horizon.basepoint.statement.Assignments set ->
+        new dev.horizon.basepoint.statement.Assignments(set.assignments().stream()
+            .map(assignment -> new Assignment(assignment.column(), expression(assignment.value()))).toList());
+      case Values values -> new Values(values.rows().stream()
           .map(row -> row.stream().map(this::expression).toList()).toList());
       default -> clause;
     };
@@ -232,33 +264,39 @@ final class Table<E> {
   private Expression expression(Expression expression) {
     return switch (expression) {
       case null -> null;
-      case Expression.Column column -> Expression.column(binding(column.name()).column());
-      case Expression.JsonKey key -> {
+      case Column column -> Expression.column(binding(column.name()).column());
+      case JsonKey key -> {
         Binding binding = binding(key.column());
         if (binding.stored() != JsonObject.class) {
           throw new IllegalArgumentException("The field " + key.column() + " of the model of the table " + model.table()
               + " is not stored as a JSON object, so it has no key " + key.key() + ".");
         }
-        yield new Expression.JsonKey(binding.column(), key.key());
+        yield new JsonKey(binding.column(), key.key());
       }
-      case Expression.Plus plus -> new Expression.Plus(expression(plus.left()), expression(plus.right()));
-      case Expression.Aggregate aggregate -> new Expression.Aggregate(aggregate.function(),
-          expression(aggregate.argument()));
-      case Expression.As as -> new Expression.As(expression(as.value()), as.name());
+      case Arithmetic arithmetic -> new Arithmetic(expression(arithmetic.left()), arithmetic.operator(),
+          expression(arithmetic.right()));
+      case Concat concat -> new Concat(concat.texts().stream().map(this::expression).toList());
+      case Call call -> new Call(call.function(), call.arguments().stream().map(this::expression).toList());
+      case Length length -> new Length(expression(length.text()));
+      case Shift shift -> new Shift(expression(shift.timestamp()), shift.duration());
+      case Case choice -> new Case(rewrite(choice.condition(), true), expression(choice.then()),
+          expression(choice.otherwise()));
+      case Aggregate aggregate -> new Aggregate(aggregate.function(), expression(aggregate.argument()));
+      case As as -> new As(expression(as.value()), as.name());
       default -> expression;
     };
   }
 
   private Expression value(Expression operand, Expression value, boolean bind) {
     return switch (value) {
-      case Expression.Value plain when bind -> new Expression.Value(bind(operand, plain.value()));
-      case Expression.Value plain -> plain;
+      case Value plain when bind -> new Value(bind(operand, plain.value()));
+      case Value plain -> plain;
       default -> expression(value);
     };
   }
 
   private Object bind(Expression operand, Object value) {
-    return operand instanceof Expression.Column column ? binding(column.name()).bind(driver, value)
+    return operand instanceof Column column ? binding(column.name()).bind(driver, value)
         : driver.bind(value);
   }
 }

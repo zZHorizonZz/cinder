@@ -1,10 +1,11 @@
 package dev.horizon.cinder.contract;
 
-import static dev.horizon.basepoint.Filter.eq;
+import static dev.horizon.basepoint.filter.Filter.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.horizon.basepoint.Expression;
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.expression.Expression;
+import dev.horizon.basepoint.expression.Literal;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Assignments;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Context;
@@ -49,13 +50,13 @@ public abstract class ExtensionContractTest extends ContractTest {
     @Override
     public Statement shape(Statement statement, Context<?> context) {
       return context.kind() == Call.Kind.INSERT ? statement
-          : statement.where(dev.horizon.basepoint.Filter.ne("state", "CANCELLED"));
+          : statement.where(dev.horizon.basepoint.filter.Filter.ne("state", "CANCELLED"));
     }
 
     @Override
     public Assignments write(Assignments row, Context<?> context) {
-      return context.kind() == Call.Kind.UPDATE ? row.set("version", new Expression.Plus(Expression.column(
-          "version"), new Expression.Literal(1))) : row;
+      return context.kind() == Call.Kind.UPDATE ? row.set("version", Expression.add(Expression.column(
+          "version"), new Literal(1))) : row;
     }
   }
 

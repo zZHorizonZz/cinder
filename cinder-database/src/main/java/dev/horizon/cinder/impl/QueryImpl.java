@@ -8,13 +8,15 @@ import dev.horizon.aquery.aip158.Page;
 import dev.horizon.aquery.aip158.PageRequest;
 import dev.horizon.aquery.aip158.PageToken;
 import dev.horizon.aquery.aip160.InvalidFilterException;
-import dev.horizon.basepoint.Clause;
 import dev.horizon.basepoint.Direction;
-import dev.horizon.basepoint.Expression;
-import dev.horizon.basepoint.Filter;
-import dev.horizon.basepoint.Include;
 import dev.horizon.basepoint.LockMode;
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.expression.Column;
+import dev.horizon.basepoint.expression.Expression;
+import dev.horizon.basepoint.expression.Literal;
+import dev.horizon.basepoint.filter.Filter;
+import dev.horizon.basepoint.filter.Related;
+import dev.horizon.basepoint.statement.Include;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.Part;
@@ -59,7 +61,8 @@ final class QueryImpl<E> implements Query<E> {
    * @param mask the fields to read, or null for every field
    * @param lock the lock of the rows, or null for none
    */
-  private record Steps(List<Filter> filters, List<Clause.Sort> sorts, Long limit, Long offset, LockMode lock,
+  private record Steps(List<Filter> filters, List<dev.horizon.basepoint.statement.Sort> sorts, Long limit, Long offset,
+      LockMode lock,
       List<Binding> mask, List<Included> includes, List<Part> parts) {
 
     static final Steps EMPTY = new Steps(List.of(), List.of(), null, null, null, null, List.of(), List.of());
@@ -76,7 +79,7 @@ final class QueryImpl<E> implements Query<E> {
       return new Steps(append(filters, more), sorts, limit, offset, lock, mask, includes, parts);
     }
 
-    Steps withSorts(List<Clause.Sort> more) {
+    Steps withSorts(List<dev.horizon.basepoint.statement.Sort> more) {
       return new Steps(filters, append(sorts, more), limit, offset, lock, mask, includes, parts);
     }
 
@@ -209,7 +212,7 @@ final class QueryImpl<E> implements Query<E> {
     Table<T> target = database.table(database.model(relation.target()));
     List<Filter> related = new ArrayList<>();
     for (int i = 0; i < relation.fields().size(); i++) {
-      related.add(new Filter.Related(target.binding(relation.references().get(i)).column(),
+      related.add(new Related(target.binding(relation.references().get(i)).column(),
           table.binding(relation.fields().get(i)).column()));
     }
     Query<T> narrowed = narrow.apply(new QueryImpl<>(database, target, Steps.EMPTY.withFilters(related)));
@@ -246,9 +249,9 @@ final class QueryImpl<E> implements Query<E> {
   public Future<Page<E>> page(PageRequest request) {
     return Future.succeededFuture().compose(ignored -> {
       QueryImpl<E> query = request.filter().isEmpty() ? this : (QueryImpl<E>) where(request.filter());
-      List<Clause.Sort> sorts = new ArrayList<>(query.steps.sorts());
+      List<dev.horizon.basepoint.statement.Sort> sorts = new ArrayList<>(query.steps.sorts());
       sorts.addAll(parse(request.orderBy()));
-      List<Clause.Sort> order = keyset(sorts);
+      List<dev.horizon.basepoint.statement.Sort> order = keyset(sorts);
       String fingerprint = fingerprint(request);
       Optional<PageToken> token = database.tokens().decode(request.pageToken(), fingerprint);
       int size = Math.min(request.pageSize(), database.maxPageSize());
@@ -280,7 +283,7 @@ final class QueryImpl<E> implements Query<E> {
   @Override
   public Future<Boolean> exists() {
     return Future.succeededFuture().compose(ignored -> {
-      ExecutionImpl<E> execution = execution(filtered().select(PRESENT, new Expression.Literal(1)).limit(1)
+      ExecutionImpl<E> execution = execution(filtered().select(PRESENT, new Literal(1)).limit(1)
           .statement());
       return execution.run(execution.statement()).map(rows -> rows.size() > 0);
     });
@@ -368,12 +371,13 @@ final class QueryImpl<E> implements Query<E> {
         ? table.bindings()
         : selected.mask()).stream().map(Binding::name).toArray(String[]::new));
     for (Included included : selected.includes()) {
-      query = query.select(INCLUDE + included.relation().name(),
-          new Include(included.relation().shape() == Relation.Shape.ONE ? Include.Shape.ONE : Include.Shape.MANY,
-              included.rows().related()));
+      Statement rows = included.rows().related();
+      query = query.select(INCLUDE + included.relation().name(), included.relation().shape() == Relation.Shape.ONE
+          ? new Include.One(rows)
+          : new Include.Many(rows));
     }
     query = conditions(query, selected);
-    for (Clause.Sort sort : selected.sorts()) {
+    for (dev.horizon.basepoint.statement.Sort sort : selected.sorts()) {
       query = query.orderBy(sort.value(), sort.direction());
     }
     if (selected.limit() != null) {
@@ -405,11 +409,11 @@ final class QueryImpl<E> implements Query<E> {
     return filtered;
   }
 
-  private List<Clause.Sort> parse(String orderBy) {
+  private List<dev.horizon.basepoint.statement.Sort> parse(String orderBy) {
     if (orderBy.isBlank()) {
       return List.of();
     }
-    List<Clause.Sort> sorts = new ArrayList<>();
+    List<dev.horizon.basepoint.statement.Sort> sorts = new ArrayList<>();
     for (OrderBy term : Order.parse(orderBy)) {
       Binding binding;
       try {
@@ -422,23 +426,23 @@ final class QueryImpl<E> implements Query<E> {
     return sorts;
   }
 
-  private Clause.Sort sortOf(String field, Direction direction) {
-    return new Clause.Sort(Expression.column(table.binding(field).name()), direction);
+  private dev.horizon.basepoint.statement.Sort sortOf(String field, Direction direction) {
+    return new dev.horizon.basepoint.statement.Sort(Expression.column(table.binding(field).name()), direction);
   }
 
   /** Gives the sorts with the key fields after them, so that the order of the rows is total. */
-  private List<Clause.Sort> keyset(List<Clause.Sort> sorts) {
-    List<Clause.Sort> total = new ArrayList<>(sorts);
+  private List<dev.horizon.basepoint.statement.Sort> keyset(List<dev.horizon.basepoint.statement.Sort> sorts) {
+    List<dev.horizon.basepoint.statement.Sort> total = new ArrayList<>(sorts);
     for (Binding key : table.key()) {
       if (total.stream().noneMatch(sort -> sort.value().equals(Expression.column(key.name())))) {
-        total.add(new Clause.Sort(Expression.column(key.name()), Direction.ASC));
+        total.add(new dev.horizon.basepoint.statement.Sort(Expression.column(key.name()), Direction.ASC));
       }
     }
     return total;
   }
 
   /** Gives the filter of the rows after the last row of a page, in the order of the page. */
-  private Filter after(List<Clause.Sort> order, List<String> cursor) {
+  private Filter after(List<dev.horizon.basepoint.statement.Sort> order, List<String> cursor) {
     if (cursor.size() != order.size()) {
       throw new IllegalArgumentException("The page token has " + cursor.size() + " values for an order of "
           + order.size() + " fields.");
@@ -457,16 +461,16 @@ final class QueryImpl<E> implements Query<E> {
     return Filter.or(alternatives.toArray(Filter[]::new));
   }
 
-  private Object value(Clause.Sort sort, String text) {
+  private Object value(dev.horizon.basepoint.statement.Sort sort, String text) {
     return field(sort).fromCursor(database.driver(), text);
   }
 
-  private List<String> cursor(List<Clause.Sort> order, E last) {
+  private List<String> cursor(List<dev.horizon.basepoint.statement.Sort> order, E last) {
     return order.stream().map(sort -> field(sort).cursor(field(sort).get(last))).toList();
   }
 
-  private Binding field(Clause.Sort sort) {
-    return table.binding(((Expression.Column) sort.value()).name());
+  private Binding field(dev.horizon.basepoint.statement.Sort sort) {
+    return table.binding(((Column) sort.value()).name());
   }
 
   private String fingerprint(PageRequest request) {

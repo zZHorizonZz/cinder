@@ -1,8 +1,8 @@
 package dev.horizon.cinder.impl;
 
-import dev.horizon.basepoint.Clause;
 import dev.horizon.basepoint.InsertQuery;
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.statement.OnConflict;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Assignments;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Conflict;
@@ -161,8 +161,8 @@ final class InsertImpl<E> implements Insert<E> {
       case Conflict.Merge merge -> written.replace(target).statement();
     };
     if (steps.conflict() instanceof Conflict.Merge merge && !merge.fields().isEmpty()) {
-      Clause.OnConflict conflict = statement.find(Clause.OnConflict.class).orElseThrow();
-      return statement.replace(conflict, new Clause.OnConflict(conflict.key(), merge.fields().stream()
+      OnConflict conflict = statement.find(OnConflict.class).orElseThrow();
+      return statement.replace(conflict, new OnConflict(conflict.key(), merge.fields().stream()
           .map(field -> table.binding(field).column()).toList()));
     }
     return statement;

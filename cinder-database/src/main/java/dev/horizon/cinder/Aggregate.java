@@ -1,8 +1,13 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Clause;
-import dev.horizon.basepoint.Expression;
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.expression.As;
+import dev.horizon.basepoint.expression.Expression;
+import dev.horizon.basepoint.statement.Clause;
+import dev.horizon.basepoint.statement.From;
+import dev.horizon.basepoint.statement.GroupBy;
+import dev.horizon.basepoint.statement.Select;
+import dev.horizon.basepoint.statement.Statement;
+import dev.horizon.basepoint.statement.Where;
 import io.vertx.core.Future;
 import io.vertx.sqlclient.Row;
 import java.util.ArrayList;
@@ -128,19 +133,19 @@ public final class Aggregate implements Terminal<Object, Future<List<Aggregate.G
       for (String field : by) {
         Expression column = Expression.column(column(execution, field));
         groups.add(column);
-        columns.add(new Expression.As(column, field));
+        columns.add(new As(column, field));
       }
       for (Measure measure : measures) {
-        columns.add(new Expression.As(measure.expression().apply(measure.field() == null ? null
+        columns.add(new As(measure.expression().apply(measure.field() == null ? null
             : column(execution, measure.field())), measure.name()));
       }
     } catch (IllegalArgumentException unknown) {
       return Future.failedFuture(unknown);
     }
-    List<Clause> clauses = new ArrayList<>(List.of(new Clause.Select(false, columns), new Clause.From()));
-    query.find(Clause.Where.class).ifPresent(clauses::add);
+    List<Clause> clauses = new ArrayList<>(List.of(new Select(false, columns), new From()));
+    query.find(Where.class).ifPresent(clauses::add);
     if (!groups.isEmpty()) {
-      clauses.add(new Clause.GroupBy(groups));
+      clauses.add(new GroupBy(groups));
     }
     return execution.run(new Statement(query.source(), clauses)).map(rows -> {
       List<Group> found = new ArrayList<>();

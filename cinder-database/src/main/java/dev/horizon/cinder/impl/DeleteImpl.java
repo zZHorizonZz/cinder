@@ -1,8 +1,8 @@
 package dev.horizon.cinder.impl;
 
 import dev.horizon.basepoint.DeleteQuery;
-import dev.horizon.basepoint.Filter;
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.filter.Filter;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Delete;
 import dev.horizon.cinder.Model;

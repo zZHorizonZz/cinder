@@ -1,11 +1,10 @@
 package dev.horizon.cinder.impl;
 
 import dev.horizon.aquery.aip158.PageTokenCodec;
-import dev.horizon.basepoint.Decorator;
 import dev.horizon.basepoint.Dialect;
 import dev.horizon.basepoint.RenderedStatement;
-import dev.horizon.basepoint.Statement;
-import dev.horizon.basepoint.StatementWriter;
+import dev.horizon.basepoint.statement.Decorator;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Database;
 import dev.horizon.cinder.Delete;
@@ -66,7 +65,7 @@ final class CinderDatabase implements Database {
     this.interceptors = this.extensions.stream().flatMap(extension -> extension.interceptors().stream()).toList();
     Decorator decorator = this.extensions.stream().map(Extension::decorator).reduce(Decorator.none(),
         Decorator::then);
-    this.dialect = driver.dialect().decorated(decorator);
+    this.dialect = driver.dialect().decorate(decorator);
     this.clock = clock;
     this.tokens = new PageTokenCodec(pageTokenKey);
     this.maxPageSize = maxPageSize;
@@ -215,7 +214,7 @@ final class CinderDatabase implements Database {
   }
 
   private RenderedStatement render(Statement statement) {
-    return new StatementWriter(dialect).render(statement).rendered();
+    return dialect.render(statement);
   }
 
   private Future<DeferredRowStream.Cursor> open(SqlConnection connection, Call<DeferredRowStream.Cursor> call,
