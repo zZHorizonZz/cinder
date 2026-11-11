@@ -8,16 +8,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
-import dev.horizon.aquery.InvalidQueryException;
 import dev.horizon.aquery.aip158.Page;
 import dev.horizon.aquery.aip158.PageRequest;
 import dev.horizon.cinder.Attribute;
-import dev.horizon.cinder.Backend;
 import dev.horizon.cinder.Database;
 import dev.horizon.cinder.Extension;
 import dev.horizon.cinder.Field;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.Relation;
+import dev.horizon.cinder.Table;
 import dev.horizon.cinder.TypeCodec;
 import dev.horizon.cinder.protobuf.shop.Address;
 import dev.horizon.cinder.protobuf.shop.Customer;
@@ -28,6 +27,18 @@ import dev.horizon.cinder.protobuf.shop.Shop;
 import dev.horizon.cinder.protobuf.shop.State;
 import dev.horizon.cinder.protobuf.shop.Token;
 import dev.horizon.cinder.sqlite.SqliteDriver;
+import dev.horizon.leadseal.protobuf.BooleanColumn;
+import dev.horizon.leadseal.protobuf.BytesColumn;
+import dev.horizon.leadseal.protobuf.ColumnOptions;
+import dev.horizon.leadseal.protobuf.DateColumn;
+import dev.horizon.leadseal.protobuf.DecimalColumn;
+import dev.horizon.leadseal.protobuf.IntegerColumn;
+import dev.horizon.leadseal.protobuf.JsonColumn;
+import dev.horizon.leadseal.protobuf.NumberColumn;
+import dev.horizon.leadseal.protobuf.TextColumn;
+import dev.horizon.leadseal.protobuf.TimeColumn;
+import dev.horizon.leadseal.protobuf.TimestampColumn;
+import dev.horizon.leadseal.protobuf.UuidColumn;
 import io.vertx.core.Vertx;
 import io.vertx.jdbcclient.JDBCConnectOptions;
 import io.vertx.jdbcclient.JDBCPool;
@@ -40,11 +51,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ProtobufExtensionTest {
@@ -52,38 +68,6 @@ class ProtobufExtensionTest {
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
   private static final Attribute<Boolean> SECRET = ProtobufField.attribute(Shop.secret);
-
-  private record Orders(Database database) implements Backend<Order, Long> {
-
-    @Override
-    public Order prototype() {
-      return Order.getDefaultInstance();
-    }
-  }
-
-  private record Customers(Database database) implements Backend<Customer, String> {
-
-    @Override
-    public Customer prototype() {
-      return Customer.getDefaultInstance();
-    }
-  }
-
-  private record Tokens(Database database) implements Backend<Token, ByteString> {
-
-    @Override
-    public Token prototype() {
-      return Token.getDefaultInstance();
-    }
-  }
-
-  private record Lines(Database database) implements Backend<OrderLine, Long> {
-
-    @Override
-    public OrderLine prototype() {
-      return OrderLine.getDefaultInstance();
-    }
-  }
 
   private static final class Hidden implements Extension, TypeCodec {
 
@@ -111,9 +95,9 @@ class ProtobufExtensionTest {
   private Vertx vertx;
   private Pool pool;
   private Database database;
-  private Orders orders;
-  private Customers customers;
-  private Lines lines;
+  private Table<Order> orders;
+  private Table<Customer> customers;
+  private Table<OrderLine> lines;
 
   @BeforeAll
   void open() throws Exception {
@@ -125,8 +109,9 @@ class ProtobufExtensionTest {
     for (String sql : List.of(
         "CREATE TABLE customers (id TEXT PRIMARY KEY, email TEXT NOT NULL)",
         "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id TEXT NOT NULL, state TEXT NOT NULL,"
-            + " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), discount INTEGER,"
-            + " tags TEXT NOT NULL, address TEXT, counts TEXT NOT NULL, token BLOB)",
+            + " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now') || '000Z'), discount INTEGER,"
+            + " tags TEXT NOT NULL, address TEXT, counts TEXT NOT NULL, token BLOB,"
+            + " label TEXT GENERATED ALWAYS AS (upper(customer_id)) VIRTUAL)",
         "CREATE TABLE order_line (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, product TEXT NOT NULL,"
             + " note TEXT NOT NULL)",
         "CREATE TABLE tokens (id BLOB PRIMARY KEY, label TEXT NOT NULL)")) {
@@ -134,9 +119,9 @@ class ProtobufExtensionTest {
     }
     database = Database.builder(pool, new SqliteDriver()).extension(new ProtobufExtension()).extension(new Hidden())
         .build();
-    orders = new Orders(database);
-    customers = new Customers(database);
-    lines = new Lines(database);
+    orders = database.table(Order.getDefaultInstance());
+    customers = database.table(Customer.getDefaultInstance());
+    lines = database.table(OrderLine.getDefaultInstance());
   }
 
   @AfterAll
@@ -154,7 +139,8 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void mapsAMessageToItsTable() {
+  @DisplayName("Maps a message to its table, its fields and its key")
+  void table() {
     Model<Order> model = database.model(Order.getDefaultInstance());
     assertThat(model.table()).isEqualTo("orders");
     assertThat(model.field("create_time").orElseThrow().column()).isEqualTo("created_at");
@@ -166,7 +152,8 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void writesAndReadsEveryKindOfField() throws TimeoutException {
+  @DisplayName("Writes and reads every kind of field")
+  void everyKind() throws TimeoutException {
     Order order = Order.newBuilder().setCustomerId("anne").setState(State.PAID)
         .setCreateTime(Timestamp.newBuilder().setSeconds(1_767_261_600L).setNanos(123_456_000))
         .setDiscount(Int64Value.of(250)).addAllTags(List.of("gift", "rush"))
@@ -174,12 +161,14 @@ class ProtobufExtensionTest {
         .setToken(ByteString.copyFromUtf8("token")).build();
     Order created = orders.insert(order).await(TIMEOUT);
     assertThat(created.getId()).isPositive();
-    assertThat(created.toBuilder().clearId().build()).isEqualTo(order);
-    assertThat(orders.findById(created.getId()).await(TIMEOUT)).contains(created);
+    assertThat(created.toBuilder().clearId().clearLabel().build()).isEqualTo(order);
+    assertThat(created.getLabel()).isEqualTo("ANNE");
+    assertThat(orders.find(created.getId()).await(TIMEOUT)).contains(created);
   }
 
   @Test
-  void leavesTheFieldsThatTheDatabaseFillsToIt() throws TimeoutException {
+  @DisplayName("Leaves the fields that the database fills to it")
+  void databaseDefaults() throws TimeoutException {
     Instant before = Instant.now().minusSeconds(1);
     Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
     assertThat(created.getId()).isPositive();
@@ -188,52 +177,58 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void filtersByTheValuesOfAField() throws TimeoutException {
+  @DisplayName("Filters by the values of a field, and refuses a value of no enum")
+  void filter() throws TimeoutException {
     orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
     orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.PAID).build()).await(TIMEOUT);
-    assertThat(orders.find(eq("state", State.PAID)).count().await(TIMEOUT)).isEqualTo(1L);
-    assertThat(orders.find("state = \"OPEN\"").count().await(TIMEOUT)).isEqualTo(1L);
-    assertThatThrownBy(() -> orders.find("state = \"LOST\"").count().await(TIMEOUT))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(orders.count(orders.query().where(eq("state", State.PAID))).await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.count(orders.query().where("state = \"OPEN\"")).await(TIMEOUT)).isEqualTo(1L);
+    assertThatThrownBy(() -> orders.count(orders.query().where("state = \"LOST\"")).await(TIMEOUT))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageEndingWith("has no value LOST.");
   }
 
   @Test
-  void filtersByAKeyOfAMapOrAMessage() throws TimeoutException {
+  @DisplayName("Filters by a key of a map or a message")
+  void filterKey() throws TimeoutException {
     orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).putCounts("mug", 2)
         .setAddress(Address.newBuilder().setCity("Brno")).build()).await(TIMEOUT);
     orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).putCounts("cup", 1)
         .setAddress(Address.newBuilder().setCity("Prague")).build()).await(TIMEOUT);
-    assertThat(orders.find(eq(key("address", "city"), "Brno")).count().await(TIMEOUT)).isEqualTo(1L);
-    assertThat(orders.find("address.city = Prague").count().await(TIMEOUT)).isEqualTo(1L);
-    assertThat(orders.find("counts.mug = 2").count().await(TIMEOUT)).isEqualTo(1L);
-    assertThat(orders.find("counts:cup").count().await(TIMEOUT)).isEqualTo(1L);
-    assertThatThrownBy(() -> orders.find("state.name = OPEN").count().await(TIMEOUT))
-        .isInstanceOf(InvalidQueryException.class).hasMessageContaining("is not stored as a JSON object");
+    assertThat(orders.count(orders.query().where(eq(key("address", "city"), "Brno"))).await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.count(orders.query().where("address.city = Prague")).await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.count(orders.query().where("counts.mug = 2")).await(TIMEOUT)).isEqualTo(1L);
+    assertThat(orders.count(orders.query().where("counts:cup")).await(TIMEOUT)).isEqualTo(1L);
+    assertThatThrownBy(() -> orders.count(orders.query().where("state.name = OPEN")).await(TIMEOUT))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageEndingWith("is not stored as a JSON object, so it has no key name.");
   }
 
   @Test
-  void readsTheRelatedMessages() throws TimeoutException {
+  @DisplayName("Reads the related messages of a relation")
+  void include() throws TimeoutException {
     Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
-    lines.insertAll(List.of(OrderLine.newBuilder().setId(1).setOrderId(created.getId()).setProduct("mug")
+    lines.insert(List.of(OrderLine.newBuilder().setId(1).setOrderId(created.getId()).setProduct("mug")
         .setNote("fragile").build(),
         OrderLine.newBuilder().setId(2).setOrderId(created.getId()).setProduct("cup")
             .build()))
         .await(TIMEOUT);
-    Order found = orders.find(eq("id", created.getId())).include("customer").include("lines", rows -> rows
-        .orderBy("id")).single().await(TIMEOUT);
+    Order found = orders.single(orders.query().where(eq("id", created.getId())).includeOne("customer", orders
+        .related("customer")).include("lines", orders.related("lines").orderBy("id"))).await(TIMEOUT);
     assertThat(found.getCustomer().getEmail()).isEqualTo("anne@example.com");
     assertThat(found.getLinesList()).extracting(OrderLine::getProduct).containsExactly("mug", "cup");
     assertThat(found.getLines(0).getNote()).isEqualTo("fragile");
   }
 
   @Test
-  void namesTheTableInItsSchema() {
+  @DisplayName("Names the table in its schema")
+  void schema() {
     assertThat(database.model(Ledger.getDefaultInstance()).table()).isEqualTo("audit.ledger");
   }
 
   @Test
-  void pagesByAKeyOfBytes() throws TimeoutException {
-    Tokens tokens = new Tokens(database);
+  @DisplayName("Pages by a key of bytes")
+  void bytesKey() throws TimeoutException {
+    Table<Token> tokens = database.table(Token.getDefaultInstance());
     for (int i = 1; i <= 3; i++) {
       tokens.insert(Token.newBuilder().setId(ByteString.copyFrom(new byte[] { (byte) i, 0 })).setLabel("t" + i)
           .build()).await(TIMEOUT);
@@ -241,7 +236,7 @@ class ProtobufExtensionTest {
     List<String> labels = new ArrayList<>();
     String next = "";
     do {
-      Page<Token> page = tokens.list(new PageRequest("", "", 1, next)).await(TIMEOUT);
+      Page<Token> page = tokens.page(tokens.query(), new PageRequest("", "", 1, next)).await(TIMEOUT);
       page.items().forEach(token -> labels.add(token.getLabel()));
       next = page.nextPageToken();
     } while (!next.isEmpty());
@@ -249,10 +244,91 @@ class ProtobufExtensionTest {
   }
 
   @Test
-  void givesTheCustomOptionsAsAttributes() throws TimeoutException {
+  @DisplayName("Gives the custom options of a field as its attributes")
+  void attributes() throws TimeoutException {
     lines.insert(OrderLine.newBuilder().setId(3).setOrderId(1).setProduct("plate").setNote("glass").build()).await(TIMEOUT);
     Object stored = pool.query("SELECT note FROM order_line").execute().await(TIMEOUT).iterator().next().getValue(0);
     assertThat(stored).isEqualTo("hidden:glass");
-    assertThat(lines.findById(3L).await(TIMEOUT).orElseThrow().getNote()).isEqualTo("glass");
+    assertThat(lines.find(3L).await(TIMEOUT).orElseThrow().getNote()).isEqualTo("glass");
+  }
+
+  @Test
+  @DisplayName("Leaves a generated column to the database in an insert, and reads its value back")
+  void generatedInsert() throws TimeoutException {
+    Order created = orders.insert(Order.newBuilder().setCustomerId("beth").setState(State.OPEN).setLabel("mine")
+        .build()).await(TIMEOUT);
+
+    assertThat(created.getLabel()).isEqualTo("BETH");
+    assertThat(orders.find(created.getId()).await(TIMEOUT)).map(Order::getLabel).contains("BETH");
+  }
+
+  @Test
+  @DisplayName("Leaves a generated column to the database in an update, and in an update of every field")
+  void generatedUpdate() throws TimeoutException {
+    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build())
+        .await(TIMEOUT);
+
+    orders.execute(orders.update().set("label", "mine").set("state", State.OPEN).where(eq("id", created.getId())))
+        .await(TIMEOUT);
+    Order patched = orders.update(created.toBuilder().setState(State.PAID).setLabel("mine").build(), "*")
+        .await(TIMEOUT).orElseThrow();
+
+    assertThat(patched.getState()).isEqualTo(State.PAID);
+    assertThat(patched.getLabel()).isEqualTo("ANNE");
+  }
+
+  @Test
+  @DisplayName("Writes a defaulted field that the message sets")
+  void defaultSet() throws TimeoutException {
+    Timestamp time = Timestamp.newBuilder().setSeconds(1_767_261_600L).build();
+
+    Order created = orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).setCreateTime(time)
+        .build()).await(TIMEOUT);
+
+    assertThat(created.getCreateTime()).isEqualTo(time);
+  }
+
+  static Stream<Arguments> columns() {
+    return Stream.of(
+        Arguments.of("no type", ColumnOptions.getDefaultInstance(), false, false),
+        Arguments.of("generated", ColumnOptions.newBuilder().setGenerated("upper(note)").build(), true, false),
+        Arguments.of("boolean default", ColumnOptions.newBuilder().setBoolean(BooleanColumn.newBuilder()
+            .setDefaultValue(false)).build(), false, true),
+        Arguments.of("integer", ColumnOptions.newBuilder().setInteger(IntegerColumn.getDefaultInstance()).build(),
+            false, false),
+        Arguments.of("integer identity", ColumnOptions.newBuilder().setInteger(IntegerColumn.newBuilder()
+            .setIdentity(true)).build(), false, true),
+        Arguments.of("integer default", ColumnOptions.newBuilder().setInteger(IntegerColumn.newBuilder()
+            .setDefaultValue(0)).build(), false, true),
+        Arguments.of("number default", ColumnOptions.newBuilder().setNumber(NumberColumn.newBuilder()
+            .setDefaultValue(1.5)).build(), false, true),
+        Arguments.of("decimal default", ColumnOptions.newBuilder().setDecimal(DecimalColumn.newBuilder()
+            .setDefaultValue("0.00")).build(), false, true),
+        Arguments.of("text", ColumnOptions.newBuilder().setText(TextColumn.newBuilder().setLength(20)).build(),
+            false, false),
+        Arguments.of("text default", ColumnOptions.newBuilder().setText(TextColumn.newBuilder()
+            .setDefaultValue("")).build(), false, true),
+        Arguments.of("bytes default", ColumnOptions.newBuilder().setBytes(BytesColumn.newBuilder()
+            .setDefaultValue(ByteString.EMPTY)).build(), false, true),
+        Arguments.of("random uuid", ColumnOptions.newBuilder().setUuid(UuidColumn.newBuilder()
+            .setDefaultRandom(true)).build(), false, true),
+        Arguments.of("current time", ColumnOptions.newBuilder().setTimestamp(TimestampColumn.newBuilder()
+            .setDefaultNow(true)).build(), false, true),
+        Arguments.of("timestamp", ColumnOptions.newBuilder().setTimestamp(TimestampColumn.getDefaultInstance())
+            .build(), false, false),
+        Arguments.of("current date", ColumnOptions.newBuilder().setDate(DateColumn.newBuilder()
+            .setDefaultToday(true)).build(), false, true),
+        Arguments.of("time default", ColumnOptions.newBuilder().setTime(TimeColumn.newBuilder()
+            .setDefaultValue("09:00")).build(), false, true),
+        Arguments.of("json default", ColumnOptions.newBuilder().setJson(JsonColumn.newBuilder()
+            .setDefaultValue("{}")).build(), false, true));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("columns")
+  @DisplayName("Tells the columns that the database fills by the typed Leadseal options")
+  void filled(String name, ColumnOptions column, boolean generated, boolean defaulted) {
+    assertThat(ProtobufLeadsealAdapter.isGenerated(column)).isEqualTo(generated);
+    assertThat(ProtobufLeadsealAdapter.hasDefault(column)).isEqualTo(defaulted);
   }
 }

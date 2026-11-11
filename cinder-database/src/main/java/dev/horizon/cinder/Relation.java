@@ -25,6 +25,15 @@ public record Relation<T>(String name, T target, Shape shape, List<String> field
     MANY
   }
 
+  /**
+   * Keeps copies of the lists of fields.
+   *
+   * @param name the name of the field that holds the related entities, such as {@code items}
+   * @param target an entity of the related type, which names its model
+   * @param shape whether the field holds one related entity or a list of them
+   * @param fields the fields of this model, such as {@code id}
+   * @param references the fields of the target that match them, such as {@code order_id}
+   */
   public Relation {
     fields = List.copyOf(fields);
     references = List.copyOf(references);

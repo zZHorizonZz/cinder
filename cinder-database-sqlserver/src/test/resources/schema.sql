@@ -1,0 +1,28 @@
+CREATE TABLE customers (
+  id NVARCHAR(20) PRIMARY KEY,
+  email NVARCHAR(100) NOT NULL UNIQUE,
+  name NVARCHAR(50) NOT NULL
+);
+
+CREATE TABLE orders (
+  id BIGINT PRIMARY KEY,
+  customer_id NVARCHAR(20) NOT NULL,
+  state NVARCHAR(20) NOT NULL,
+  total_cents BIGINT NOT NULL,
+  version INT NOT NULL DEFAULT 0,
+  created_at DATETIME2(6) NOT NULL,
+  cancel_time DATETIME2(6) NULL
+);
+
+CREATE TABLE items (
+  id BIGINT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  product NVARCHAR(50) NOT NULL,
+  quantity INT NOT NULL,
+  position INT NOT NULL
+);
+
+CREATE TABLE files (
+  id BIGINT PRIMARY KEY,
+  content VARBINARY(MAX)
+);

@@ -5,59 +5,81 @@ import io.vertx.core.Future;
 import io.vertx.core.streams.ReadStream;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
- * The run of an operation, which a {@link Terminal} gets: the statement after every part, and the means to run it the
- * way the database runs its own statements.
+ * One operation of a table: its context and its parts, which shape its statements, write its rows and complete its
+ * entities.
  *
  * @param <E> the type of the entities
  */
-public interface Execution<E> extends Context<E> {
+final class Execution<E> {
+
+  private final Database database;
+  private final Mapping<E> mapping;
+  private final Context<E> context;
+  private final List<Part> parts;
+
+  Execution(Database database, Mapping<E> mapping, Invocation.Kind kind, List<Part> own) {
+    this.database = database;
+    this.mapping = mapping;
+    this.context = new Context<>(database, mapping.model(), Optional.ofNullable(database.current()), kind,
+        database.now());
+    List<Part> all = new ArrayList<>(mapping.parts());
+    all.addAll(own);
+    this.parts = List.copyOf(all);
+  }
+
+  Context<E> context() {
+    return context;
+  }
 
   /**
-   * Gives the statement of the operation.
-   *
-   * @return the statement, with the changes of every part, its fields named by their columns and its values bound,
-   * before the decorators. A statement that a terminal makes of it names columns too.
+   * Gives the fields that a write sends, after the parts.
    */
-  Statement statement();
+  Map<String, Object> write(Map<String, Object> row) {
+    for (Part part : parts) {
+      row = part.write(row, context);
+    }
+    return row;
+  }
 
   /**
-   * Runs a statement: the one of the operation, or another that the terminal made of it. The statement goes through
-   * the decorators of the dialect and the extensions, and its run through the interceptors, in the transaction of the
-   * operation if it has one.
-   *
-   * @param statement the statement
-   * @return the rows, or a future that fails if the statement does not build or the database refuses it
+   * Gives the statement that runs: shaped by the parts, then mapped to the columns.
    */
-  Future<RowSet<Row>> run(Statement statement);
+  Statement shape(Statement statement) {
+    mapping.requireTable(statement);
+    for (Part part : parts) {
+      statement = part.shape(statement, context);
+    }
+    return mapping.rewrite(statement);
+  }
 
-  /**
-   * Reads the rows of a statement through a cursor, with the back pressure of the stream. In the transaction of the
-   * operation, the cursor uses its connection. Without one, it takes a connection and a transaction of its own, and
-   * gives them back when the stream ends or fails.
-   *
-   * @param statement the statement, which goes through the decorators and the interceptors as {@link #run} does
-   * @param fetch the number of rows that the cursor reads at a time
-   * @return the stream of the rows
-   */
-  ReadStream<Row> stream(Statement statement, int fetch);
+  Future<RowSet<Row>> run(Statement statement) {
+    return database.run(mapping.model(), context.kind(), statement);
+  }
 
-  /**
-   * Reads an entity from a row, through the codecs of its fields.
-   *
-   * @param row a row of the table of the model
-   * @return the entity
-   */
-  E read(Row row);
+  ReadStream<Row> stream(Statement statement, int fetch) {
+    return database.stream(mapping.model(), statement, fetch);
+  }
 
-  /**
-   * Gives entities to the parts of the operation, in order, such as to an include that reads their related rows. A
-   * terminal that streams gives them each batch that its cursor reads.
-   *
-   * @param entities the entities that the terminal read
-   * @return the entities, with the changes of every part
-   */
-  Future<List<E>> complete(List<E> entities);
+  Future<List<E>> entities(RowSet<Row> rows, Function<Row, E> reader) {
+    List<E> entities = new ArrayList<>(rows.size());
+    for (Row row : rows) {
+      entities.add(reader.apply(row));
+    }
+    return complete(entities);
+  }
+
+  Future<List<E>> complete(List<E> entities) {
+    Future<List<E>> future = Future.succeededFuture(entities);
+    for (Part part : parts) {
+      future = future.compose(done -> part.complete(done, context));
+    }
+    return future;
+  }
 }

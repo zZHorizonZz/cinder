@@ -7,66 +7,50 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.horizon.basepoint.expression.Expression;
 import dev.horizon.basepoint.expression.Literal;
 import dev.horizon.basepoint.statement.Statement;
-import dev.horizon.cinder.Assignments;
-import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Context;
-import dev.horizon.cinder.Execution;
 import dev.horizon.cinder.Extension;
-import dev.horizon.cinder.Field;
 import dev.horizon.cinder.Interceptor;
+import dev.horizon.cinder.Invocation;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.Part;
-import dev.horizon.cinder.Terminal;
 import dev.horizon.cinder.TypeCodec;
 import io.vertx.core.Future;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeoutException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 public abstract class ExtensionContractTest extends ContractTest {
 
   private final List<String> calls = new CopyOnWriteArrayList<>();
 
-  private static final class Reversed implements TypeCodec {
-
-    @Override
-    public boolean applies(Field<?, ?> field) {
-      return field.name().equals("name");
-    }
-
-    @Override
-    public Object write(Field<?, ?> field, Object value) {
-      return new StringBuilder((String) value).reverse().toString();
-    }
-
-    @Override
-    public Object read(Field<?, ?> field, Object stored) {
-      return new StringBuilder((String) stored).reverse().toString();
-    }
-  }
-
   private static final class Hidden implements Part {
 
     @Override
     public Statement shape(Statement statement, Context<?> context) {
-      return context.kind() == Call.Kind.INSERT ? statement
-          : statement.where(ne("state", "CANCELLED"));
+      return context.kind() == Invocation.Kind.INSERT ? statement : statement.where(ne("state", "CANCELLED"));
     }
 
     @Override
-    public Assignments write(Assignments row, Context<?> context) {
-      return context.kind() == Call.Kind.UPDATE ? row.set("version", Expression.add(Expression.column(
-          "version"), new Literal(1))) : row;
+    public Map<String, Object> write(Map<String, Object> row, Context<?> context) {
+      if (context.kind() != Invocation.Kind.UPDATE) {
+        return row;
+      }
+      Map<String, Object> versioned = new LinkedHashMap<>(row);
+      versioned.put("version", Expression.add(Expression.column("version"), new Literal(1)));
+      return versioned;
     }
   }
 
   private final class Recorder implements Interceptor {
 
     @Override
-    public <R> Future<R> intercept(Call<R> call, Chain<R> next) {
-      calls.add(call.kind() + " " + call.model().table());
-      return next.proceed(call);
+    public <R> Future<R> intercept(Invocation<R> invocation, Chain<R> next) {
+      calls.add(invocation.kind() + " " + invocation.model().table());
+      return next.proceed(invocation);
     }
   }
 
@@ -94,53 +78,60 @@ public abstract class ExtensionContractTest extends ContractTest {
   }
 
   @Test
-  void codesTheValuesOfAField() throws TimeoutException {
-    customers.insert(new Shop.Customer("dora", "dora@example.com", "Dora")).await(TIMEOUT);
-    assertThat(customers.findById("dora").await(TIMEOUT).orElseThrow().name()).isEqualTo("Dora");
-    assertThat(customers.find(eq("name", "Dora")).list().await(TIMEOUT)).extracting(Shop.Customer::id)
-        .containsExactly("dora");
+  @DisplayName("Stores the value of a field as its codec writes it, and reads it back")
+  void codec() throws TimeoutException {
+    await(customers.insert(new Shop.Customer("dora", "dora@example.com", "Dora")));
+    await(customers.execute(customers.update().set("name", "Dorothy").where(eq("id", "anne"))));
+
+    assertThat(await(pool.query("SELECT name FROM customers WHERE id IN ('anne', 'dora') ORDER BY id").execute()))
+        .extracting(row -> row.getString(0)).containsExactly("yhtoroD", "aroD");
+    assertThat(await(customers.find("dora"))).map(Shop.Customer::name).contains("Dora");
+    assertThat(await(customers.list(customers.query().where(eq("name", "Dorothy"))))).extracting(Shop.Customer::id)
+        .containsExactly("anne");
   }
 
   @Test
-  void shapesEveryOperationOfAModel() throws TimeoutException {
-    assertThat(orders.count().await(TIMEOUT)).isEqualTo(4L);
-    assertThat(orders.findById(4L).await(TIMEOUT)).isEmpty();
-    assertThat(orders.delete().all().execute().await(TIMEOUT)).isEqualTo(4L);
+  @DisplayName("Shapes every query, update and delete of a model")
+  void shape() throws TimeoutException {
+    assertThat(await(orders.count(orders.query()))).isEqualTo(4L);
+    assertThat(await(orders.find(4L))).isEmpty();
+    assertThat(await(orders.rows(orders.query().columns("id"))).size()).isEqualTo(4);
+    assertThat(await(orders.execute(orders.delete().all()))).isEqualTo(4L);
+    assertThat(await(pool.query("SELECT id FROM orders").execute()).size()).isEqualTo(1);
   }
 
   @Test
-  void writesTheRowsOfEveryWriteOfAModel() throws TimeoutException {
-    orders.updateById(1L, Assignments.none().set("state", "PAID")).await(TIMEOUT);
-    assertThat(orders.findById(1L).await(TIMEOUT).orElseThrow().version()).isEqualTo(1);
+  @DisplayName("Writes the fields of every update of a model")
+  void write() throws TimeoutException {
+    await(orders.execute(orders.update().set("state", "PAID").where(eq("id", 1L))));
+
+    assertThat(await(orders.find(1L))).map(order -> order.state() + "/" + order.version()).contains("PAID/1");
   }
 
   @Test
-  void interceptsEveryStatement() throws TimeoutException {
+  @DisplayName("Intercepts every statement, with its kind and its model")
+  void intercept() throws TimeoutException {
     calls.clear();
-    orders.count().await(TIMEOUT);
-    customers.findById("anne").await(TIMEOUT);
-    assertThat(calls).containsExactly("QUERY orders", "QUERY customers");
+
+    await(orders.count(orders.query()));
+    await(customers.find("anne"));
+    await(customers.execute(customers.delete().where(eq("id", "dora"))));
+
+    assertThat(calls).containsExactly("QUERY orders", "QUERY customers", "DELETE customers");
   }
 
   @Test
-  void runsAPartOfOneOperation() throws TimeoutException {
+  @DisplayName("Runs a part of one table, after the parts of the model")
+  void tablePart() throws TimeoutException {
     Part mugs = new Part() {
+
       @Override
       public Statement shape(Statement statement, Context<?> context) {
         return statement.where(eq("product", "mug"));
       }
     };
-    assertThat(items.findAll().with(mugs).count().await(TIMEOUT)).isEqualTo(2L);
-  }
 
-  @Test
-  void runsATerminalOfItsOwn() throws TimeoutException {
-    Terminal<Object, Future<String>> sql = new Terminal<>() {
-      @Override
-      public Future<String> run(Execution<?> execution) {
-        return execution.run(execution.statement()).map(rows -> execution.model().table() + ":" + rows.size());
-      }
-    };
-    assertThat(orders.find(eq("customer_id", "anne")).run(sql).await(TIMEOUT)).isEqualTo("orders:2");
+    assertThat(await(items.with(mugs).count(items.query()))).isEqualTo(2L);
+    assertThat(await(items.count(items.query()))).isEqualTo(4L);
   }
 }

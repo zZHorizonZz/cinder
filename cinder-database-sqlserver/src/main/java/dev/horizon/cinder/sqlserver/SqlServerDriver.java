@@ -34,6 +34,12 @@ public final class SqlServerDriver implements Driver {
 
   private final Dialect dialect = new SqlServerDialect(ParameterStyle.AT_P);
 
+  /**
+   * Gives the driver, to build a database with.
+   */
+  public SqlServerDriver() {
+  }
+
   @Override
   public Dialect dialect() {
     return dialect;

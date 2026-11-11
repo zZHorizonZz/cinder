@@ -27,6 +27,12 @@ public final class MariaDbDriver implements Driver {
 
   private final Dialect dialect = new MariaDbDialect(ParameterStyle.QUESTION_MARK);
 
+  /**
+   * Gives the driver, to build a database with.
+   */
+  public MariaDbDriver() {
+  }
+
   @Override
   public Dialect dialect() {
     return dialect;

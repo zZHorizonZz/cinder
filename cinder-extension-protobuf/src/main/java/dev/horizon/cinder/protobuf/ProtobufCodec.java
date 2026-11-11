@@ -49,7 +49,7 @@ import java.util.function.UnaryOperator;
  * <li>a repeated field, a map and any other message into JSON, as the protobuf JSON mapping writes them.</li>
  * </ul>
  *
- * The codec resolves the conversion of each field once, as the codec of the field.
+ * The codec picks the conversion of each field once, as the codec of the field.
  */
 final class ProtobufCodec implements TypeCodec {
 
@@ -93,12 +93,12 @@ final class ProtobufCodec implements TypeCodec {
 
   @Override
   public boolean applies(Field<?, ?> field) {
-    return field instanceof MessageField<?> message && conversion(message) != null;
+    return field instanceof ProtobufField<?> message && conversion(message) != null;
   }
 
   @Override
   public TypeCodec of(Field<?, ?> field) {
-    return conversion((MessageField<?>) field);
+    return conversion((ProtobufField<?>) field);
   }
 
   @Override
@@ -111,7 +111,7 @@ final class ProtobufCodec implements TypeCodec {
     return of(field).read(field, stored);
   }
 
-  private static Conversion conversion(MessageField<?> field) {
+  private static Conversion conversion(ProtobufField<?> field) {
     FieldDescriptor descriptor = field.descriptor();
     ColumnOptions column = field.options();
     if (descriptor.isRepeated()) {
@@ -172,7 +172,7 @@ final class ProtobufCodec implements TypeCodec {
     };
   }
 
-  private static Conversion message(MessageField<?> field) {
+  private static Conversion message(ProtobufField<?> field) {
     Descriptor type = field.descriptor().getMessageType();
     return switch (type.getFullName()) {
       case "google.protobuf.Timestamp" -> new Conversion(Instant.class, value -> instant((Timestamp) value),
@@ -204,9 +204,9 @@ final class ProtobufCodec implements TypeCodec {
 
   /**
    * Gives the conversion of a message of {@code google.type}, which protobuf-java has no classes of, by the fields of
-   * its descriptor, resolved once.
+   * its descriptor, which it looks up once.
    */
-  private static Conversion fields(MessageField<?> field, Class<?> stored, String... names) {
+  private static Conversion fields(ProtobufField<?> field, Class<?> stored, String... names) {
     Message prototype = field.prototype().newBuilderForType().newBuilderForField(field.descriptor())
         .getDefaultInstanceForType();
     FieldDescriptor[] parts = new FieldDescriptor[names.length];
@@ -243,7 +243,7 @@ final class ProtobufCodec implements TypeCodec {
    * a message as an object. It prints and parses a message of the field alone, so that every value is written as the
    * mapping writes it, such as a 64-bit integer as a string.
    */
-  private static Conversion json(MessageField<?> field) {
+  private static Conversion json(ProtobufField<?> field) {
     FieldDescriptor descriptor = field.descriptor();
     String name = descriptor.getJsonName();
     boolean array = descriptor.isRepeated() && !descriptor.isMapField();

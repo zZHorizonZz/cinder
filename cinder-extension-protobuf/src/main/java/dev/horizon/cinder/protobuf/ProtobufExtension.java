@@ -2,15 +2,12 @@ package dev.horizon.cinder.protobuf;
 
 import com.google.protobuf.Message;
 import dev.horizon.cinder.Extension;
-import dev.horizon.cinder.Field;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.ModelSource;
 import dev.horizon.cinder.Part;
 import dev.horizon.cinder.TypeCodec;
 import dev.horizon.leadseal.protobuf.OptionsProto;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -33,31 +30,31 @@ public final class ProtobufExtension implements Extension, ModelSource {
 
   private final ProtobufCodec codec = new ProtobufCodec();
 
+  /**
+   * Gives the extension, to add to the builder of a database.
+   */
+  public ProtobufExtension() {
+  }
+
   @Override
   public List<ModelSource> models() {
     return List.of(this);
   }
 
   /**
-   * Gives the part of the inserts of a message with Leadseal column defaults, such as {@code default_now} or
-   * {@code default_random}, or with identity columns. It leaves each such field that the message does not set out of
-   * the row, for the database to fill, and the insert reads the value back.
+   * Gives the {@link ProtobufLeadsealAdapter} of a message whose columns the database fills: generated columns, and columns
+   * with a Leadseal default, such as {@code default_now}, or an identity.
    *
    * @param model the model
-   * @return the part, or none if no column of the model has a default
+   * @return the part, or none if the database fills no column of the model
    */
   @Override
   public List<Part> parts(Model<?> model) {
-    if (!(model instanceof MessageModel<?> message)) {
+    if (!(model instanceof ProtobufModel<?> message)) {
       return List.of();
     }
-    Map<String, MessageField<?>> filled = new LinkedHashMap<>();
-    for (Field<?, ?> field : message.fields()) {
-      if (field instanceof MessageField<?> mapped && DefaultsPart.filledByDatabase(mapped.options())) {
-        filled.put(mapped.name(), mapped);
-      }
-    }
-    return filled.isEmpty() ? List.of() : List.of(new DefaultsPart(Map.copyOf(filled)));
+    ProtobufLeadsealAdapter adapter = new ProtobufLeadsealAdapter(message);
+    return adapter.isEmpty() ? List.of() : List.of(adapter);
   }
 
   @Override
@@ -81,6 +78,6 @@ public final class ProtobufExtension implements Extension, ModelSource {
       return Optional.empty();
     }
     Message empty = message.getDefaultInstanceForType();
-    return Optional.of((Model<E>) new MessageModel(empty.getClass(), empty));
+    return Optional.of((Model<E>) new ProtobufModel(empty.getClass(), empty));
   }
 }

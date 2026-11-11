@@ -17,8 +17,8 @@ public interface TypeCodec {
   boolean applies(Field<?, ?> field);
 
   /**
-   * Gives the codec of one field, which the database keeps for the field, so that a codec resolves what it does with
-   * a field once rather than for each value.
+   * Gives the codec of one field, which the database keeps for the field, so that a codec decides what it does with
+   * a field once, not for each value.
    *
    * @param field the field, which the codec applies to
    * @return the codec of the field. The default is this codec.
