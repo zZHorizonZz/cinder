@@ -1,13 +1,16 @@
 package dev.horizon.cinder.impl;
 
 import dev.horizon.aquery.aip157.ReadMask;
-import dev.horizon.basepoint.Clause;
-import dev.horizon.basepoint.Expression;
-import dev.horizon.basepoint.Filter;
 import dev.horizon.basepoint.LockMode;
-import dev.horizon.basepoint.Source;
-import dev.horizon.basepoint.Statement;
 import dev.horizon.basepoint.UpdateQuery;
+import dev.horizon.basepoint.expression.Expression;
+import dev.horizon.basepoint.filter.Filter;
+import dev.horizon.basepoint.statement.From;
+import dev.horizon.basepoint.statement.Lock;
+import dev.horizon.basepoint.statement.Select;
+import dev.horizon.basepoint.statement.Source;
+import dev.horizon.basepoint.statement.Statement;
+import dev.horizon.basepoint.statement.Where;
 import dev.horizon.cinder.Assignments;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Model;
@@ -131,19 +134,19 @@ final class UpdateImpl<E> implements Update<E> {
    */
   private Future<List<E>> reread(ExecutionImpl<E> execution) {
     Statement update = execution.statement();
-    Filter where = update.find(Clause.Where.class).map(Clause.Where::filter).orElse(Filter.and());
+    Filter where = update.find(Where.class).map(Where::filter).orElse(Filter.and());
     List<Expression> keys = table.key().stream().map(key -> Expression.column(key.column())).toList();
-    Statement locked = new Statement(Source.aliased(table.model().table()), List.of(new Clause.Select(false, keys),
-        new Clause.From(), new Clause.Where(where), new Clause.Lock(LockMode.UPDATE)));
+    Statement locked = new Statement(new Source.Table(table.model().table()), List.of(new Select(false, keys),
+        new From(), new Where(where), new Lock(LockMode.UPDATE)));
     return database.transaction(transaction -> execution.run(locked).compose(found -> {
       if (found.size() == 0) {
         return Future.succeededFuture(List.<E> of());
       }
       Filter byKeys = keys(found);
-      Statement byKey = update.find(Clause.Where.class).map(old -> update.replace(old, new Clause.Where(byKeys)))
+      Statement byKey = update.find(Where.class).map(old -> update.replace(old, new Where(byKeys)))
           .orElseGet(() -> update.where(byKeys));
-      Statement read = new Statement(Source.aliased(table.model().table()), List.of(new Clause.Select(false,
-          List.of()), new Clause.From(), new Clause.Where(byKeys)));
+      Statement read = new Statement(new Source.Table(table.model().table()), List.of(new Select(false,
+          List.of()), new From(), new Where(byKeys)));
       return execution.run(byKey).compose(updated -> execution.run(read)).compose(execution::entities);
     }));
   }

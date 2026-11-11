@@ -2,7 +2,7 @@ package dev.horizon.cinder;
 
 import dev.horizon.aquery.aip158.Page;
 import dev.horizon.aquery.aip158.PageRequest;
-import dev.horizon.basepoint.Filter;
+import dev.horizon.basepoint.filter.Filter;
 import io.vertx.core.Future;
 import java.util.Collection;
 import java.util.List;

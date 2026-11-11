@@ -1,6 +1,6 @@
 package dev.horizon.cinder.impl;
 
-import dev.horizon.basepoint.Statement;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Call;
 import dev.horizon.cinder.Database;
 import dev.horizon.cinder.Execution;

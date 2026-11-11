@@ -12,4 +12,6 @@ public interface TestDatabase {
   Pool pool(Vertx vertx);
 
   List<String> schema();
+
+  boolean storesEnums();
 }

@@ -1,7 +1,7 @@
 package dev.horizon.cinder.contract;
 
-import static dev.horizon.basepoint.Filter.eq;
-import static dev.horizon.basepoint.Filter.in;
+import static dev.horizon.basepoint.filter.Filter.eq;
+import static dev.horizon.basepoint.filter.Filter.in;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;

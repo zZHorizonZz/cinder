@@ -43,4 +43,9 @@ final class SqliteTestDatabase implements TestDatabase {
             + " quantity INTEGER NOT NULL, position INTEGER NOT NULL)",
         "CREATE TABLE files (id INTEGER PRIMARY KEY, content BLOB)");
   }
+
+  @Override
+  public boolean storesEnums() {
+    return false;
+  }
 }

@@ -1,6 +1,6 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Decorator;
+import dev.horizon.basepoint.statement.Decorator;
 import java.util.List;
 
 /**

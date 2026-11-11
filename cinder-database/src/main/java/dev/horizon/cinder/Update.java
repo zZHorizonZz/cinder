@@ -1,6 +1,6 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Filter;
+import dev.horizon.basepoint.filter.Filter;
 import io.vertx.core.Future;
 import java.util.List;
 

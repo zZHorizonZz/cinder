@@ -1,6 +1,6 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Expression;
+import dev.horizon.basepoint.expression.Expression;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

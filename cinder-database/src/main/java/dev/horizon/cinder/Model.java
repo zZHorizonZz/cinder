@@ -1,6 +1,6 @@
 package dev.horizon.cinder;
 
-import dev.horizon.basepoint.Filter;
+import dev.horizon.basepoint.filter.Filter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
