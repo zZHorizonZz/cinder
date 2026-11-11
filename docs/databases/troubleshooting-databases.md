@@ -11,15 +11,19 @@ has its own empty database, so the tables that one connection made are not in th
 
 **Verify:** A read on a new connection finds the tables and their rows.
 
-## An insert with Conflict.ignore() gives back a row that it did not write on MariaDB
+## Cannot insert explicit value for identity column on SQL Server
 
-**Cause:** MariaDB skips a row that conflicts by setting its key to itself, and gives the row back with `RETURNING`.
-The other databases give back only the rows that the insert wrote.
+```text
+io.vertx.mssqlclient.MSSQLException: {number=544, ... message='Cannot insert explicit value for identity column in table 'notes' when IDENTITY_INSERT is set to OFF.'}
+```
 
-**Fix:** Do not count the entities of the insert to learn how many rows it wrote. Use `execute(entities, conflict)` of
-the table, which gives the number of rows that the database wrote.
+**Cause:** An insert, or an upsert, that sets the key of an identity column. SQL Server fills an identity column
+itself, as Leadseal makes it.
 
-**Verify:** `execute` gives the number of new rows on every database.
+**Fix:** Leave the key unset in an insert, as the protobuf extension does for an identity that the message does not
+set. An upsert of such a table conflicts on another unique field, with `Conflict.merge().on("email")`.
+
+**Verify:** The insert gives the row with the key that SQL Server gave it.
 
 ## An enum sorts in another order on SQL Server or SQLite
 

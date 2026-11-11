@@ -43,7 +43,7 @@ public final class MariaDbDriver implements Driver {
   }
 
   @Override
-  public boolean returnsUpdatedRows() {
+  public boolean returnsWrittenRows() {
     return false;
   }
 

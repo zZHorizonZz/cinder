@@ -57,14 +57,13 @@ public abstract class WriteContractTest extends ContractTest {
   }
 
   @Test
-  @DisplayName("Skips the rows whose key exists and inserts the others")
+  @DisplayName("Skips the rows whose key exists, inserts the others, and gives the rows of both")
   void ignore() throws TimeoutException {
     List<Shop.Order> added = await(orders.insert(List.of(new Shop.Order(1L, "carl", "OPEN", 1L, day(5)),
         new Shop.Order(6L, "carl", "OPEN", 2L, day(5))), Conflict.ignore()));
 
-    assertThat(ids(added)).contains(6L);
-    assertThat(added).filteredOn(order -> order.id() == 1L).allSatisfy(kept -> assertThat(kept.customerId())
-        .isEqualTo("anne"));
+    assertThat(added).extracting(Shop.Order::id, Shop.Order::customerId).containsExactly(tuple(1L, "anne"),
+        tuple(6L, "carl"));
     assertThat(await(orders.find(1L))).map(Shop.Order::customerId).contains("anne");
     assertThat(await(orders.find(6L))).map(Shop.Order::customerId).contains("carl");
   }

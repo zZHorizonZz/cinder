@@ -53,15 +53,22 @@ Future<List<Customer>> merged = customers.table().insert(List.of(customer), Conf
 ```
 
 `Conflict.ignore()` skips each entity whose key, or whose fields of `on`, a row already has. `Conflict.merge()`
-updates that row instead, with every field, or with the fields that `merge` names. The future gives the rows that the
-insert wrote. MariaDB skips a row by setting its key to itself, so there the future also gives the rows that
-`Conflict.ignore()` kept, unchanged.
+updates that row instead, with every field, or with the fields that `merge` names. The future gives the rows of the
+entities as the table holds them, those that `Conflict.ignore()` kept too, on every database. Where the database does
+not return written rows, the insert reads them back by the values of the conflict target, which each entity needs.
 
 To insert without reading the rows back, use `execute`, which gives the number of rows that the database changed:
 
 ```java
 Future<Long> count = orders.table().execute(List.of(first, second), Conflict.ignore());
 ```
+
+## Triggers
+
+A write that returns its rows gives them with the values that the triggers of the table wrote, such as those of a
+Leadseal rewrite. PostgreSQL returns the rows after its triggers. On MariaDB, SQLite and SQL Server, the write reads
+its rows again by their keys, in its transaction: SQLite returns the values from before its `AFTER` triggers, and SQL
+Server refuses to return rows from a table with triggers.
 
 ## Update and delete rows of a filter
 

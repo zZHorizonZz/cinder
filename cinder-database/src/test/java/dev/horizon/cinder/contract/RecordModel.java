@@ -43,9 +43,12 @@ final class RecordModel<E extends Record> implements Model<E> {
   private final List<Relation<?>> relations;
   private final Map<String, Map<String, Object>> attributes;
   private final List<Field<E, ?>> fields;
+  private final Set<String> computedNames;
+  private final List<Field<E, ?>> computed;
 
   private RecordModel(Class<E> type, String table, List<String> key, Map<String, String> columns,
-      Set<String> nullable, List<Relation<?>> relations, Map<String, Map<String, Object>> attributes) {
+      Set<String> nullable, List<Relation<?>> relations, Map<String, Map<String, Object>> attributes,
+      Set<String> computedNames) {
     this.type = type;
     this.table = table;
     this.key = key;
@@ -53,37 +56,41 @@ final class RecordModel<E extends Record> implements Model<E> {
     this.nullable = nullable;
     this.relations = relations;
     this.attributes = attributes;
+    this.computedNames = computedNames;
     List<Field<E, ?>> all = new ArrayList<>();
+    List<Field<E, ?>> values = new ArrayList<>();
     for (RecordComponent component : type.getRecordComponents()) {
       String name = snake(component.getName());
       if (relations.stream().noneMatch(relation -> relation.name().equals(name))) {
         @SuppressWarnings("unchecked")
         Class<Object> componentType = (Class<Object>) component.getType();
-        all.add(new RecordField<>(name, columns.getOrDefault(name, name), componentType, key.contains(name),
-            nullable.contains(name), component, attributes.getOrDefault(name, Map.of())));
+        RecordField<E> field = new RecordField<>(name, columns.getOrDefault(name, name), componentType,
+            key.contains(name), nullable.contains(name), component, attributes.getOrDefault(name, Map.of()));
+        (computedNames.contains(name) ? values : all).add(field);
       }
     }
     this.fields = List.copyOf(all);
+    this.computed = List.copyOf(values);
   }
 
   static <E extends Record> RecordModel<E> of(Class<E> type, String table, String... key) {
-    return new RecordModel<>(type, table, List.of(key), Map.of(), Set.of(), List.of(), Map.of());
+    return new RecordModel<>(type, table, List.of(key), Map.of(), Set.of(), List.of(), Map.of(), Set.of());
   }
 
   RecordModel<E> column(String field, String column) {
     Map<String, String> more = new HashMap<>(columns);
     more.put(field, column);
-    return new RecordModel<>(type, table, key, more, nullable, relations, attributes);
+    return new RecordModel<>(type, table, key, more, nullable, relations, attributes, computedNames);
   }
 
   RecordModel<E> nullable(String... fields) {
-    return new RecordModel<>(type, table, key, columns, Set.of(fields), relations, attributes);
+    return new RecordModel<>(type, table, key, columns, Set.of(fields), relations, attributes, computedNames);
   }
 
   RecordModel<E> relation(Relation<?> relation) {
     List<Relation<?>> more = new ArrayList<>(relations);
     more.add(relation);
-    return new RecordModel<>(type, table, key, columns, nullable, more, attributes);
+    return new RecordModel<>(type, table, key, columns, nullable, more, attributes, computedNames);
   }
 
   <T> RecordModel<E> attribute(String field, Attribute<T> attribute, T value) {
@@ -91,7 +98,16 @@ final class RecordModel<E extends Record> implements Model<E> {
     Map<String, Object> ofField = new HashMap<>(more.getOrDefault(field, Map.of()));
     ofField.put(attribute.name(), value);
     more.put(field, ofField);
-    return new RecordModel<>(type, table, key, columns, nullable, relations, more);
+    return new RecordModel<>(type, table, key, columns, nullable, relations, more, computedNames);
+  }
+
+  RecordModel<E> computed(String... fields) {
+    return new RecordModel<>(type, table, key, columns, nullable, relations, attributes, Set.of(fields));
+  }
+
+  @Override
+  public List<Field<E, ?>> computed() {
+    return computed;
   }
 
   @Override

@@ -150,7 +150,7 @@ final class ProtobufCodec implements TypeCodec {
     UnaryOperator<Object> write = value -> {
       EnumValueDescriptor descriptor = switch (value) {
         case EnumValueDescriptor own -> own;
-        case ProtocolMessageEnum generated -> generated.getValueDescriptor();
+        case ProtocolMessageEnum constant -> constant.getValueDescriptor();
         default -> (EnumValueDescriptor) read.apply(value);
       };
       return number ? (Object) descriptor.getNumber() : descriptor.getName();

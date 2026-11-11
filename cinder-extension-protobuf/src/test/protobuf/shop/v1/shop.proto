@@ -30,6 +30,8 @@ message Customer {
 
   string id = 1 [(leadseal.v1.column).primary_key = true];
   string email = 2;
+  int64 order_count = 3 [(leadseal.v1.column).ignore = true];
+  repeated Tag tags = 4 [(leadseal.v1.column).ignore = true];
 }
 
 message Order {
@@ -70,4 +72,38 @@ message Token {
 
   bytes id = 1 [(leadseal.v1.column).primary_key = true];
   string label = 2;
+}
+
+message Category {
+  option (leadseal.v1.table) = {name: "categories"};
+
+  int64 id = 1 [(leadseal.v1.column).primary_key = true];
+  optional int64 parent_id = 2 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Category"}];
+  string name = 3;
+  Category parent = 4 [(leadseal.v1.column).ignore = true];
+  repeated Category children = 5 [(leadseal.v1.column).ignore = true];
+}
+
+message Shipment {
+  option (leadseal.v1.table) = {name: "shipments"};
+
+  int64 id = 1 [(leadseal.v1.column).primary_key = true];
+  string billing_customer_id = 2 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Customer"}];
+  string shipping_customer_id = 3 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Customer"}];
+  Customer billing = 4 [(leadseal.v1.column).ignore = true];
+  Customer shipping = 5 [(leadseal.v1.column).ignore = true];
+}
+
+message Tag {
+  option (leadseal.v1.table) = {name: "tags"};
+
+  int64 id = 1 [(leadseal.v1.column).primary_key = true];
+  string label = 2;
+}
+
+message CustomerTag {
+  option (leadseal.v1.table) = {name: "customer_tags"};
+
+  string customer_id = 1 [(leadseal.v1.column) = {primary_key: true, foreign_key: {message: "shop.v1.Customer"}}];
+  int64 tag_id = 2 [(leadseal.v1.column) = {primary_key: true, foreign_key: {message: "shop.v1.Tag"}}];
 }

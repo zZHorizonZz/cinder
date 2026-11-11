@@ -37,4 +37,9 @@ final class SqlServerTestDatabase implements TestDatabase {
   public boolean storesEnums() {
     return false;
   }
+
+  @Override
+  public boolean writesIdentity() {
+    return false;
+  }
 }

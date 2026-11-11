@@ -1,6 +1,9 @@
 package dev.horizon.cinder;
 
 import dev.horizon.basepoint.Dialect;
+import dev.horizon.basepoint.statement.Clause;
+import dev.horizon.basepoint.statement.Returning;
+import dev.horizon.basepoint.statement.Statement;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -14,6 +17,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -158,13 +162,38 @@ public interface Driver {
   }
 
   /**
-   * Tells if the database gives the rows of an update with {@code RETURNING} or its equivalent. When it does not, an
-   * update that returns its rows locks and reads their keys first, and reads the rows again after.
+   * Tells if the database gives the rows of a write with {@code RETURNING} or its equivalent, as it stores them after
+   * its triggers. When it does not, a write that returns its rows reads them again by their keys, in the transaction
+   * of the write: an update and a delete lock and read the keys of their filter first, and an insert gets the keys
+   * of its rows from {@link #returningKeys}.
    *
    * @return true if it does. The default is true.
    */
-  default boolean returnsUpdatedRows() {
+  default boolean returnsWrittenRows() {
     return true;
+  }
+
+  /**
+   * Gives an insert that returns the keys of its rows, on a database that does not return written rows. A trigger
+   * does not change the key of a row, so the keys hold whatever the triggers do.
+   *
+   * @param insert the insert, with the columns of the table
+   * @param key the columns of the key
+   * @return the insert that gives the keys as its last rows. The default adds {@code RETURNING}.
+   */
+  default Statement returningKeys(Statement insert, List<Key> key) {
+    List<Clause> clauses = new ArrayList<>(insert.clauses());
+    clauses.add(new Returning(key.stream().map(Key::column).toList()));
+    return new Statement(insert.source(), clauses);
+  }
+
+  /**
+   * A column of the key of a table.
+   *
+   * @param column the name of the column
+   * @param type the type of its values, as the driver reads them, such as {@code Long}
+   */
+  record Key(String column, Class<?> type) {
   }
 
   /**

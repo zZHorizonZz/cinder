@@ -33,4 +33,8 @@ public interface TestDatabase {
   default boolean locksRows() {
     return true;
   }
+
+  default boolean writesIdentity() {
+    return true;
+  }
 }

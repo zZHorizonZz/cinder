@@ -60,11 +60,12 @@ of many, such as its items.
 ## The model of the table ... has no relation ...
 
 ```text
-java.lang.IllegalArgumentException: The model of the table orders has no relation payments.
+java.lang.IllegalArgumentException: The model of the table orders has no relation payments, so the rows of the include have no field to go to.
 ```
 
 **Cause:** `related` or an include of a name that is no relation of the model. An include goes under the name of its
-relation, because Cinder reads the related rows into the field of that name.
+relation, because Cinder reads the related rows into the field of that name. Related rows with a filter of their
+own, such as the recent posts of an author, need a relation field of their own.
 
 **Fix:** Use the name of the relation, which is the name of its field. For protobuf messages, see
 [Map protobuf messages](../models/map-protobuf-messages.md).
@@ -138,6 +139,73 @@ that says `has more than one row`.
 **Fix:** Use `first` when the query can have no row, and narrow the filter when it can have more than one.
 
 **Verify:** `single` gives the one entity of the query.
+
+## The query selects a value under the name ..., which is no field of the model
+
+```text
+java.lang.IllegalArgumentException: The query selects a value under the name double_total, which is no field of the model of the table orders. Give the value the name of a computed field, or read it with rows().
+```
+
+**Cause:** `select(name, value)` under a name that is no computed field of the model, which the entity would lose. A
+name of a stored field, such as `total_cents`, fails the same way, because the value would hide the column.
+
+**Fix:** Give the model a computed field of the name, such as an ignored field of a protobuf message, or read the value
+with `rows`.
+
+**Verify:** The entities hold the value in the computed field.
+
+## The field ... is computed, so a statement names it only as the name of a value that it selects
+
+```text
+java.lang.IllegalArgumentException: The field order_count of the model of the table customers is computed, so a statement names it only as the name of a value that it selects, such as select("order_count", value).
+```
+
+**Cause:** A filter, an order or a write of a computed field, which has no column.
+
+**Fix:** Filter by the expression of the value, such as `gt(orderCount, 3)`, and sort by the name of the selected
+value.
+
+**Verify:** The read gives the rows of the filter, in the order of the value.
+
+## No model of the database has the table ...
+
+```text
+java.lang.IllegalArgumentException: No model of the database has the table payments. Start the query of the table from the table of its model, such as database.table(prototype).query().
+```
+
+**Cause:** A statement inside a statement, such as an `exists` or a `subquery`, of a table that no table of the
+database has read yet, or of a table without a model. Cinder maps its fields with the model of its table.
+
+**Fix:** Start the statement from the table of its model, such as `database.table(Payment.getDefaultInstance())
+.query()`, or from a backend of the model.
+
+**Verify:** The read gives the rows of the filter.
+
+## The field ... has codecs that change its text
+
+```text
+java.lang.IllegalArgumentException: The field name has codecs that change its text, so a pattern does not match what its column holds.
+```
+
+**Cause:** `startsWith`, `contains`, `endsWith` or `like` of a text field whose codecs store it as other text, such as
+an encrypted field. The pattern would compare with the stored text, and find nothing.
+
+**Fix:** Filter such a field by equality, which Cinder sends through its codecs, or keep a field without a codec to
+search by.
+
+**Verify:** The read gives the rows of the filter.
+
+## A page continues one query of the table, not a union
+
+```text
+java.lang.IllegalArgumentException: A page continues one query of the table, not a union, an intersect or an except of queries.
+```
+
+**Cause:** `page` of a combined query. A page token holds the values of the last row of one query.
+
+**Fix:** List a combined query with `list`, or page one query with a filter that keeps the rows of both.
+
+**Verify:** The page gives the first rows of the query.
 
 ## Related
 

@@ -167,7 +167,7 @@ public interface Backend<E, K> {
   }
 
   /**
-   * Counts the rows that the filter of a query keeps.
+   * Counts the rows of a query.
    *
    * @param query the query of the rows
    * @return the number of rows
@@ -178,7 +178,7 @@ public interface Backend<E, K> {
   }
 
   /**
-   * Tells whether the filter of a query keeps a row.
+   * Tells whether a query has a row.
    *
    * @param query the query of the rows
    * @return whether a row exists
@@ -272,8 +272,8 @@ public interface Backend<E, K> {
    * @return the entities of the keys that rows have, in no particular order
    */
   default Future<List<E>> findAllById(Collection<K> ids) {
-    return Database.attempt(() -> list(query().where(Filter.or(ids.stream().map(model()::keyFilter)
-        .toArray(Filter[]::new)))));
+    return Future.future(promise -> list(query().where(Filter.or(ids.stream().map(model()::keyFilter)
+        .toArray(Filter[]::new)))).onComplete(promise));
   }
 
   /**
@@ -283,7 +283,7 @@ public interface Backend<E, K> {
    * @return whether a row has it
    */
   default Future<Boolean> existsById(K id) {
-    return Database.attempt(() -> exists(query().where(model().keyFilter(id))));
+    return Future.future(promise -> exists(query().where(model().keyFilter(id))).onComplete(promise));
   }
 
   /**
@@ -361,8 +361,8 @@ public interface Backend<E, K> {
    * @return whether a row had the key
    */
   default Future<Boolean> updateById(K id, UnaryOperator<UpdateQuery> set) {
-    return Database.attempt(() -> execute(set.apply(update()).where(model().keyFilter(id))))
-        .map(updated -> updated > 0);
+    return Future.future(promise -> execute(set.apply(update()).where(model().keyFilter(id))).map(updated -> updated > 0)
+        .onComplete(promise));
   }
 
   /**
@@ -372,6 +372,7 @@ public interface Backend<E, K> {
    * @return whether a row had the key
    */
   default Future<Boolean> deleteById(K id) {
-    return Database.attempt(() -> execute(delete().where(model().keyFilter(id)))).map(deleted -> deleted > 0);
+    return Future.future(promise -> execute(delete().where(model().keyFilter(id))).map(deleted -> deleted > 0)
+        .onComplete(promise));
   }
 }

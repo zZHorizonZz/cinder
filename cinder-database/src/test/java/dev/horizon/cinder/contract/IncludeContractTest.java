@@ -68,7 +68,8 @@ public abstract class IncludeContractTest extends ContractTest {
     assertThatThrownBy(() -> orders.related("payments")).isInstanceOf(IllegalArgumentException.class)
         .hasMessage("The model of the table orders has no relation payments.");
     assertThat(failure(orders.list(orders.query().include("payments", items.query()))))
-        .isInstanceOf(IllegalArgumentException.class).hasMessage("The model of the table orders has no relation payments.");
+        .isInstanceOf(IllegalArgumentException.class).hasMessage("The model of the table orders has no relation"
+            + " payments, so the rows of the include have no field to go to.");
   }
 
   @Test
