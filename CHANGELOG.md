@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/zZHorizonZz/cinder/compare/v0.5.0...v0.6.0) (2026-11-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* Driver.returnsUpdatedRows is Driver.returnsWrittenRows, Database.close is gone, count and exists count joins and groups, and Conflict.ignore() gives kept rows on PostgreSQL too.
+
+### Features
+
+* fill computed fields, map statements of other tables, read written rows after triggers, and join relations by named foreign keys and link tables. ([#26](https://github.com/zZHorizonZz/cinder/issues/26)) ([0f48c58](https://github.com/zZHorizonZz/cinder/commit/0f48c582f0aa5a3642c086ee10809fb6319c609f))
+
 ## [0.5.0](https://github.com/zZHorizonZz/cinder/compare/v0.4.1...v0.5.0) (2026-11-11)
 
 
