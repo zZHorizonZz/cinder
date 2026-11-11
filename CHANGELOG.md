@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/zZHorizonZz/cinder/compare/v0.4.1...v0.5.0) (2026-11-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* queries, updates and deletes are Basepoint's builders, run by Table or Backend. Backend.find(...), findAll(), insert(), update() and delete() builders, Assignments, Sort, Aggregate, Conflict on an Insert, Terminal and Execution are gone; Call is Invocation, and Part.write takes the fields as a map.
+* Filter is dev.horizon.basepoint.filter.Filter and Expression is dev.horizon.basepoint.expression.Expression.
+
+### Features
+
+* depend on basepoint 0.4.1, leadseal 0.3.1 and aquery 0.4.0, and map the fields of every expression to their columns. ([#21](https://github.com/zZHorizonZz/cinder/issues/21)) ([44565f3](https://github.com/zZHorizonZz/cinder/commit/44565f37311f4a2508ffbd54d4fa08806100bb0a))
+* run the statements of Basepoint, in place of builders of Cinder's own. ([#24](https://github.com/zZHorizonZz/cinder/issues/24)) ([5f63623](https://github.com/zZHorizonZz/cinder/commit/5f63623e2bd7c5627733ad4393690fc827a90f6d))
+
 ## [0.4.1](https://github.com/zZHorizonZz/cinder/compare/v0.4.0...v0.4.1) (2026-10-25)
 
 

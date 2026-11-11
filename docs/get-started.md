@@ -36,12 +36,12 @@ write its rows through a backend.
      <dependency>
        <groupId>dev.horizon</groupId>
        <artifactId>cinder-database-postgres</artifactId>
-       <version>0.4.2-SNAPSHOT</version>
+       <version>0.5.0</version>
      </dependency>
      <dependency>
        <groupId>dev.horizon</groupId>
        <artifactId>cinder-extension-protobuf</artifactId>
-       <version>0.4.2-SNAPSHOT</version>
+       <version>0.5.0</version>
      </dependency>
    </dependencies>
    ```
