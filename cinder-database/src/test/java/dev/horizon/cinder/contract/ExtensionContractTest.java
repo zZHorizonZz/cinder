@@ -1,6 +1,7 @@
 package dev.horizon.cinder.contract;
 
 import static dev.horizon.basepoint.filter.Filter.eq;
+import static dev.horizon.basepoint.filter.Filter.ne;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.horizon.basepoint.expression.Expression;
@@ -50,7 +51,7 @@ public abstract class ExtensionContractTest extends ContractTest {
     @Override
     public Statement shape(Statement statement, Context<?> context) {
       return context.kind() == Call.Kind.INSERT ? statement
-          : statement.where(dev.horizon.basepoint.filter.Filter.ne("state", "CANCELLED"));
+          : statement.where(ne("state", "CANCELLED"));
     }
 
     @Override
