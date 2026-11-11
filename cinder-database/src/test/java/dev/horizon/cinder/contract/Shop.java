@@ -1,7 +1,5 @@
 package dev.horizon.cinder.contract;
 
-import dev.horizon.cinder.Backend;
-import dev.horizon.cinder.Database;
 import dev.horizon.cinder.Extension;
 import dev.horizon.cinder.Model;
 import dev.horizon.cinder.ModelSource;
@@ -33,38 +31,6 @@ public final class Shop implements Extension, ModelSource {
   }
 
   public record File(Long id, byte[] content) {
-  }
-
-  public record Files(Database database) implements Backend<File, Long> {
-
-    @Override
-    public File prototype() {
-      return FILE;
-    }
-  }
-
-  public record Orders(Database database) implements Backend<Order, Long> {
-
-    @Override
-    public Order prototype() {
-      return ORDER;
-    }
-  }
-
-  public record Customers(Database database) implements Backend<Customer, String> {
-
-    @Override
-    public Customer prototype() {
-      return CUSTOMER;
-    }
-  }
-
-  public record Items(Database database) implements Backend<Item, Long> {
-
-    @Override
-    public Item prototype() {
-      return ITEM;
-    }
   }
 
   private final Map<Class<?>, Model<?>> models = Map.of(

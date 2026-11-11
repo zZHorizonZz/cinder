@@ -1,0 +1,28 @@
+CREATE TABLE customers (
+  id VARCHAR(20) PRIMARY KEY,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE orders (
+  id BIGINT PRIMARY KEY,
+  customer_id VARCHAR(20) NOT NULL,
+  state ENUM('OPEN', 'PAID', 'SHIPPED', 'CLOSED', 'CANCELLED', 'ARCHIVED', 'LOST') NOT NULL,
+  total_cents BIGINT NOT NULL,
+  version INT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL,
+  cancel_time DATETIME(6) NULL
+);
+
+CREATE TABLE items (
+  id BIGINT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  product VARCHAR(50) NOT NULL,
+  quantity INT NOT NULL,
+  position INT NOT NULL
+);
+
+CREATE TABLE files (
+  id BIGINT PRIMARY KEY,
+  content LONGBLOB
+);

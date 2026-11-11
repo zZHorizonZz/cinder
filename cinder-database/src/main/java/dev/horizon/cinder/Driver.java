@@ -31,12 +31,6 @@ import java.util.UUID;
  */
 public interface Driver {
 
-  /** The length of a date of ISO 8601, such as {@code 2026-10-16}, before the time. */
-  int DATE_LENGTH = 10;
-
-  /** The SQLSTATE of the standard for a row whose key or unique fields another row has. */
-  String UNIQUE_VIOLATION = "23505";
-
   /**
    * Gives the dialect of the SQL of the database, with the placeholders that its client takes.
    *
@@ -78,6 +72,15 @@ public interface Driver {
     return null;
   }
 
+  /**
+   * Reads a value of a column as a value of a type, such as a number of the client as a {@code Long}, a text as a
+   * {@code UUID}, or a text of JSON as a {@code JsonObject}. A driver overrides it for the values that its client
+   * gives in another form.
+   *
+   * @param value the value that the client gave, or {@code null}
+   * @param type the type that the field stores, after its codecs
+   * @return the value as the type, or the value as it is if the driver does not know the type
+   */
   default Object read(Object value, Class<?> type) {
     if (value == null || type.isInstance(value)) {
       return value;
@@ -133,8 +136,9 @@ public interface Driver {
    * @throws java.time.format.DateTimeParseException if the text is not a time
    */
   default Instant instant(String text) {
-    String iso = text.length() > DATE_LENGTH && text.charAt(DATE_LENGTH) == ' ' ? text.substring(0, DATE_LENGTH)
-        + 'T' + text.substring(DATE_LENGTH + 1) : text;
+    int date = "2026-10-16".length();
+    String iso = text.length() > date && text.charAt(date) == ' ' ? text.substring(0, date) + 'T'
+        + text.substring(date + 1) : text;
     try {
       return OffsetDateTime.parse(iso).toInstant();
     } catch (DateTimeParseException withoutZone) {
@@ -230,7 +234,8 @@ public interface Driver {
    * @return true if it is. The default reads the SQLSTATE {@code 23505} of the standard.
    */
   default boolean duplicateKey(Throwable failure) {
-    return failure instanceof DatabaseException database && UNIQUE_VIOLATION.equals(database.getSqlState());
+    String uniqueViolation = "23505";
+    return failure instanceof DatabaseException database && uniqueViolation.equals(database.getSqlState());
   }
 
   /**

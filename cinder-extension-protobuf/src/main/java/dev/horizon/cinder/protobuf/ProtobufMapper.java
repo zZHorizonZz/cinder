@@ -16,12 +16,18 @@ public interface ProtobufMapper<T, M extends MessageOrBuilder, B extends Message
   /**
    * Reads the value from the columns of the row.
    *
+   * @param row the row
+   * @return the value
    * @throws IllegalStateException if the columns hold a value that the mapper does not know
    */
   T read(M row);
 
   /**
    * Writes the value to the columns of the row, and returns the row.
+   *
+   * @param row the builder of the row
+   * @param value the value
+   * @return the builder, with the columns of the value
    */
   B write(B row, T value);
 }

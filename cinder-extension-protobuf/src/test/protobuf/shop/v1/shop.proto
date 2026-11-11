@@ -47,6 +47,7 @@ message Order {
 
   Customer customer = 10 [(leadseal.v1.column).ignore = true];
   repeated OrderLine lines = 11 [(leadseal.v1.column).ignore = true];
+  string label = 12 [(leadseal.v1.column).generated = "upper(customer_id)"];
 }
 
 message OrderLine {

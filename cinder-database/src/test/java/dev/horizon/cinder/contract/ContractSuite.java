@@ -7,6 +7,24 @@ public abstract class ContractSuite {
   protected abstract TestDatabase testDatabase();
 
   @Nested
+  class Backend extends BackendContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
+  class Input extends InputContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
   class Read extends ReadContractTest {
 
     @Override

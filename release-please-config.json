@@ -18,7 +18,7 @@
         "cinder-database-sqlserver/pom.xml",
         "cinder-database-sqlite/pom.xml",
         "cinder-extension-protobuf/pom.xml",
-        "README.md"
+        "docs/get-started.md"
       ]
     }
   },

@@ -1,9 +1,11 @@
 package dev.horizon.cinder.contract;
 
+import dev.horizon.basepoint.Query;
 import dev.horizon.basepoint.RenderedStatement;
 import dev.horizon.cinder.Database;
 import dev.horizon.cinder.Driver;
 import dev.horizon.cinder.Extension;
+import dev.horizon.cinder.Table;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -12,6 +14,7 @@ import io.vertx.sqlclient.Tuple;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,10 +37,10 @@ public abstract class ContractTest {
   protected Vertx vertx;
   protected Pool pool;
   protected Database database;
-  protected Shop.Orders orders;
-  protected Shop.Customers customers;
-  protected Shop.Items items;
-  protected Shop.Files files;
+  protected Table<Shop.Order> orders;
+  protected Table<Shop.Customer> customers;
+  protected Table<Shop.Item> items;
+  protected Table<Shop.File> files;
 
   protected abstract TestDatabase testDatabase();
 
@@ -60,10 +63,10 @@ public abstract class ContractTest {
     Database.Builder builder = Database.builder(pool, driver).extension(new Shop());
     extensions().forEach(builder::extension);
     database = builder.build();
-    orders = new Shop.Orders(database);
-    customers = new Shop.Customers(database);
-    files = new Shop.Files(database);
-    items = new Shop.Items(database);
+    orders = database.table(Shop.ORDER);
+    customers = database.table(Shop.CUSTOMER);
+    files = database.table(Shop.FILE);
+    items = database.table(Shop.ITEM);
   }
 
   @AfterAll
@@ -129,8 +132,24 @@ public abstract class ContractTest {
     return cause;
   }
 
+  protected <T> T await(Future<T> future) throws TimeoutException {
+    return future.await(TIMEOUT);
+  }
+
+  protected List<Long> ids(Query query) throws TimeoutException {
+    return idsInOrder(query.orderBy("id"));
+  }
+
+  protected List<Long> idsInOrder(Query query) throws TimeoutException {
+    return ids(await(orders.list(query)));
+  }
+
   protected List<Long> ids(List<Shop.Order> found) {
     return found.stream().map(Shop.Order::id).toList();
+  }
+
+  protected static List<Long> longs(String text) {
+    return Arrays.stream(text.split(",")).map(Long::valueOf).toList();
   }
 
   private void insert(String table, Map<String, Object>... rows) throws TimeoutException {

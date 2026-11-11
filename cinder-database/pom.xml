@@ -41,6 +41,11 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>dev.horizon</groupId>
+      <artifactId>basepoint-dialect-postgres</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

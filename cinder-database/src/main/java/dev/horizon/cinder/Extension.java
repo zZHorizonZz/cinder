@@ -17,8 +17,8 @@ import java.util.List;
  * </ul>
  *
  * Each point defaults to nothing, so an extension overrides only the points it uses. The database applies the
- * extensions in the order it got them. New operations need no extension: they are a {@link Part} or a
- * {@link Terminal} of the operations that use them.
+ * extensions in the order it got them. New operations need no extension: an operation is a method that builds a
+ * Basepoint statement and runs it with a {@link Table}.
  */
 public interface Extension {
 

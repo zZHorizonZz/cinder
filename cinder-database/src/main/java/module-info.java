@@ -5,5 +5,5 @@ module dev.horizon.cinder {
 
   exports dev.horizon.cinder;
 
-  provides io.vertx.core.spi.VertxServiceProvider with dev.horizon.cinder.impl.TransactionLocal;
+  provides io.vertx.core.spi.VertxServiceProvider with dev.horizon.cinder.TransactionLocal;
 }
