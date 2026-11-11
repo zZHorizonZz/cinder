@@ -26,11 +26,9 @@ empty one.
 
 - **Times:** `DATETIME` values in UTC.
 - **Enums:** an `ENUM` column, which sorts by the order of its values.
-- **Returned rows:** MariaDB gives the rows of an insert and a delete with `RETURNING`, but not those of an update
-  before version 13. On every version, an update that returns its rows locks the rows of its filter, updates them by
-  their keys, and reads them again.
-- **Conflicts:** MariaDB skips a row that conflicts by setting its key to itself, so an insert with
-  `Conflict.ignore()` also gives back the rows that it kept, unchanged.
+- **Returned rows:** MariaDB has no `RETURNING` for an update before version 13. On every version, a write that
+  returns its rows reads them again by their keys: an insert gets its keys with `RETURNING`, and an update and a
+  delete lock the rows of their filter first.
 - **Transactions:** `SET TRANSACTION` with the isolation level and the access mode, then `START TRANSACTION`.
 - **Duplicate keys:** error `1062` or `1586`.
 - **Settings:** the contract tests run with `setUseAffectedRows(true)` on `MySQLConnectOptions`.
@@ -45,6 +43,11 @@ empty one.
 - **Transactions:** `BEGIN TRANSACTION`, and `SAVE TRANSACTION` for a nested transaction. The isolation level is a
   setting of the connection, so a transaction with a level sets it before it begins, and sets `READ COMMITTED` again
   after it ends. SQL Server has no read-only transactions, so a read-only transaction can also write.
+- **Returned rows:** SQL Server refuses `OUTPUT` on a table with triggers, which Leadseal makes for rewrites and
+  triggers. A write that returns its rows reads them again by their keys: an insert gets its keys with
+  `OUTPUT ... INTO` a table variable, which a trigger allows, and an update and a delete lock the rows of their filter
+  first.
+- **Identity:** an insert cannot set an identity column, so an upsert by an identity key fails with error `544`.
 - **Duplicate keys:** error `2601` or `2627`.
 
 ## SQLite
@@ -52,6 +55,8 @@ empty one.
 - **Times:** text in UTC with six digits of fraction, such as `2026-10-16T10:00:00.000000Z`, which sorts as the times
   do, and compares with Basepoint's `now()` and Leadseal's default of the current time.
 - **Enums:** text, which sorts by the text of its values.
+- **Returned rows:** `RETURNING` gives the values from before the `AFTER` triggers, which Leadseal makes for rewrites
+  on SQLite. A write that returns its rows reads them again by their keys, which `RETURNING` gives.
 - **Transactions:** SQLite has no locks of rows. A transaction that writes locks the whole database, and
   transactions run one after another. A transaction that may write begins with `BEGIN IMMEDIATE`, which takes the
   lock of the database at once, so that two of them never wait for each other. A read-only transaction begins with

@@ -26,3 +26,30 @@ CREATE TABLE files (
   id BIGINT PRIMARY KEY,
   content LONGBLOB
 );
+
+CREATE TABLE categories (
+  id BIGINT PRIMARY KEY,
+  parent_id BIGINT NULL,
+  name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE tags (
+  id BIGINT PRIMARY KEY,
+  label VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE customer_tags (
+  customer_id VARCHAR(20) NOT NULL,
+  tag_id BIGINT NOT NULL,
+  PRIMARY KEY (customer_id, tag_id)
+);
+
+CREATE TABLE notes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  body VARCHAR(100) NOT NULL,
+  slug VARCHAR(100) NULL
+);
+
+CREATE TRIGGER notes_slug_insert BEFORE INSERT ON notes FOR EACH ROW SET NEW.slug = LOWER(NEW.body);
+
+CREATE TRIGGER notes_slug_update BEFORE UPDATE ON notes FOR EACH ROW SET NEW.slug = LOWER(NEW.body);

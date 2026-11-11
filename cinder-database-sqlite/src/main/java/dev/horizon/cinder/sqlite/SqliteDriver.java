@@ -49,6 +49,11 @@ public final class SqliteDriver implements Driver {
   }
 
   @Override
+  public boolean returnsWrittenRows() {
+    return false;
+  }
+
+  @Override
   public List<String> begin(TransactionOptions options) {
     return List.of(options.readOnly() ? "BEGIN DEFERRED" : "BEGIN IMMEDIATE");
   }

@@ -50,6 +50,25 @@ orders.list(orders.query().include("items", orders.related("items").where(eq("pr
 
 The parts of the related model, such as those of tenancy, narrow the related rows too.
 
+## Include the rows of a link table
+
+A relation through a link table, such as the tags of a customer, includes as any relation does. Its related query is
+of the link table, with a relation to the target under the name of the relation, so it narrows the target by paths:
+
+```java
+customers.list(customers.query().include("tags", customers.related("tags")
+    .where(eq(column("tags", "label"), "loyal"))));
+```
+
+## Read computed values of related rows
+
+The query of the related rows can select values under the names of computed fields of the related model:
+
+```java
+orders.list(orders.query().includeOne("customer", orders.related("customer")
+    .select("order_count", subquery(orders.query().on("customer_id", "id").count()))));
+```
+
 ## Include the relations of related rows
 
 The query of the related rows can include their own relations. Start their query from the backend or the table of

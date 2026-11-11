@@ -82,6 +82,20 @@ the parts of the model leave it out, as the protobuf extension does for the colu
 
 **Verify:** The write runs, and the row has the value.
 
+## An insert with a conflict reads its rows back by ..., which the entity at ... does not have
+
+```text
+java.lang.IllegalArgumentException: An insert with a conflict reads its rows back by id, which the entity at 0 does not have.
+```
+
+**Cause:** An insert with a `Conflict` on a database that does not return written rows, such as MariaDB, SQLite or
+SQL Server, of an entity without a value of the conflict target, such as an identity key that the database fills.
+
+**Fix:** Give a conflict target that each entity has, such as `Conflict.merge().on("email")`, or insert such
+entities without a conflict.
+
+**Verify:** The insert gives the rows of the entities.
+
 ## Related
 
 - [Write rows](write-rows.md)

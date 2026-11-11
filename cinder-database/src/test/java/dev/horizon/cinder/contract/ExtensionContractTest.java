@@ -1,7 +1,9 @@
 package dev.horizon.cinder.contract;
 
 import static dev.horizon.basepoint.filter.Filter.eq;
+import static dev.horizon.basepoint.filter.Filter.exists;
 import static dev.horizon.basepoint.filter.Filter.ne;
+import static dev.horizon.basepoint.filter.Filter.startsWith;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.horizon.basepoint.expression.Expression;
@@ -121,6 +123,24 @@ public abstract class ExtensionContractTest extends ContractTest {
   }
 
   @Test
+  @DisplayName("Sends the values of a statement inside a statement through the codecs of its table")
+  void innerCodec() throws TimeoutException {
+    await(customers.insert(new Shop.Customer("dora", "dora@example.com", "Dora")));
+    await(orders.insert(new Shop.Order(6L, "dora", "OPEN", 1L, day(5))));
+
+    assertThat(ids(orders.query().where(exists(customers.query().on("id", "customer_id").where(eq("name",
+        "Dora")))))).containsExactly(6L);
+  }
+
+  @Test
+  @DisplayName("Refuses a pattern of a field whose codecs change its text")
+  void refusePattern() throws TimeoutException {
+    assertThat(failure(customers.list(customers.query().where(startsWith("name", "An")))))
+        .isInstanceOf(IllegalArgumentException.class).hasMessage("The field name has codecs that change its text,"
+            + " so a pattern does not match what its column holds.");
+  }
+
+  @Test
   @DisplayName("Runs a part of one table, after the parts of the model")
   void tablePart() throws TimeoutException {
     Part mugs = new Part() {
@@ -133,5 +153,24 @@ public abstract class ExtensionContractTest extends ContractTest {
 
     assertThat(await(items.with(mugs).count(items.query()))).isEqualTo(2L);
     assertThat(await(items.count(items.query()))).isEqualTo(4L);
+  }
+
+  @Test
+  @DisplayName("Gives the parts of an insert of several entities the transaction that the insert runs in")
+  void partTransaction() throws TimeoutException {
+    List<Boolean> inTransaction = new CopyOnWriteArrayList<>();
+    Part watch = new Part() {
+
+      @Override
+      public Map<String, Object> write(Map<String, Object> row, Context<?> context) {
+        inTransaction.add(context.transaction().isPresent());
+        return row;
+      }
+    };
+
+    await(database.table(Shop.NOTE).with(watch).insert(List.of(new Shop.Note(null, "One", null), new Shop.Note(
+        null, "Two", null))));
+
+    assertThat(inTransaction).containsExactly(true, true);
   }
 }

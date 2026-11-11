@@ -33,12 +33,17 @@ public final class ProtobufModel<M extends Message> implements Model<M> {
   private final List<Field<M, ?>> fields = new ArrayList<>();
   private final List<Field<M, ?>> key;
   private final List<Relation<?>> relations = new ArrayList<>();
+  private final List<Field<M, ?>> computed = new ArrayList<>();
+  private final Map<String, List<String>> joins;
+  private final Map<String, Message> links;
   private final Map<String, Field<M, ?>> names = new LinkedHashMap<>();
   private final Map<String, FieldDescriptor> descriptors = new LinkedHashMap<>();
 
-  ProtobufModel(Class<M> type, M prototype) {
+  ProtobufModel(Class<M> type, M prototype, Map<String, List<String>> joins, Map<String, Message> links) {
     this.type = type;
     this.prototype = prototype;
+    this.joins = joins;
+    this.links = links;
     Descriptor descriptor = prototype.getDescriptorForType();
     TableOptions options = descriptor.getOptions().getExtension(OptionsProto.table);
     String name = options.getName().isEmpty() ? snakeCase(descriptor.getName()) : options.getName();
@@ -52,6 +57,9 @@ public final class ProtobufModel<M extends Message> implements Model<M> {
         descriptors.put(field.getName(), field);
       } else if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE && isTable(field.getMessageType())) {
         relations.add(relation(descriptor, field));
+        descriptors.put(field.getName(), field);
+      } else {
+        computed.add(new ProtobufField<>(field, prototype, column, attributes(field)));
         descriptors.put(field.getName(), field);
       }
     }
@@ -107,6 +115,11 @@ public final class ProtobufModel<M extends Message> implements Model<M> {
   }
 
   @Override
+  public List<Field<M, ?>> computed() {
+    return computed;
+  }
+
+  @Override
   public List<Relation<?>> relations() {
     return relations;
   }
@@ -156,20 +169,57 @@ public final class ProtobufModel<M extends Message> implements Model<M> {
    */
   private Relation<?> relation(Descriptor descriptor, FieldDescriptor field) {
     Descriptor target = field.getMessageType();
-    List<Relation<?>> found = new ArrayList<>();
     Message related = prototype.newBuilderForType().newBuilderForField(field).getDefaultInstanceForType();
     Relation.Shape shape = field.isRepeated() ? Relation.Shape.MANY : Relation.Shape.ONE;
-    for (List<List<String>> key : foreignKeys(descriptor, target)) {
-      found.add(new Relation<>(field.getName(), related, shape, key.get(0), key.get(1)));
+    String name = field.getFullName();
+    if (links.containsKey(name)) {
+      Message link = links.get(name);
+      List<List<String>> toRow = onlyKey(name, foreignKeys(link.getDescriptorForType(), descriptor), link
+          .getDescriptorForType(), descriptor);
+      List<List<String>> toTarget = onlyKey(name, foreignKeys(link.getDescriptorForType(), target), link
+          .getDescriptorForType(), target);
+      return new Relation<>(field.getName(), related, shape, toRow.get(1), toRow.get(0), new Relation.Link<>(link,
+          toTarget.get(0), toTarget.get(1)));
     }
-    for (List<List<String>> key : foreignKeys(target, descriptor)) {
-      found.add(new Relation<>(field.getName(), related, shape, key.get(1), key.get(0)));
+    List<Relation<?>> found = new ArrayList<>();
+    boolean self = descriptor.equals(target);
+    for (List<List<String>> key : foreignKeys(descriptor, target)) {
+      if (matchesJoin(name, key.get(0))) {
+        found.add(self && shape == Relation.Shape.MANY
+            ? new Relation<>(field.getName(), related, shape, key.get(1), key.get(0))
+            : new Relation<>(field.getName(), related, shape, key.get(0), key.get(1)));
+      }
+    }
+    if (!self) {
+      for (List<List<String>> key : foreignKeys(target, descriptor)) {
+        if (matchesJoin(name, key.get(0))) {
+          found.add(new Relation<>(field.getName(), related, shape, key.get(1), key.get(0)));
+        }
+      }
     }
     if (found.size() != 1) {
-      throw new IllegalArgumentException("The relation " + field.getFullName() + " needs one foreign key between "
-          + descriptor.getFullName() + " and " + target.getFullName() + ", but there are " + found.size() + ".");
+      throw new IllegalArgumentException("The relation " + name + " needs one foreign key between "
+          + descriptor.getFullName() + " and " + target.getFullName() + ", but there are " + found.size() + ". "
+          + (found.isEmpty()
+              ? "For a relation through a link table, name the table with new ProtobufExtension().through(\"" + name
+                  + "\", Link.getDefaultInstance())."
+              : "Name the fields of its foreign key with new ProtobufExtension().join(\"" + name
+                  + "\", \"field\")."));
     }
     return found.getFirst();
+  }
+
+  private boolean matchesJoin(String relation, List<String> fields) {
+    return !joins.containsKey(relation) || joins.get(relation).equals(fields);
+  }
+
+  private static List<List<String>> onlyKey(String relation, List<List<List<String>>> keys, Descriptor from,
+      Descriptor to) {
+    if (keys.size() != 1) {
+      throw new IllegalArgumentException("The link table " + from.getFullName() + " of the relation " + relation
+          + " needs one foreign key to " + to.getFullName() + ", but there are " + keys.size() + ".");
+    }
+    return keys.getFirst();
   }
 
   /** Gives the foreign keys from a table to another, each as its fields and the fields they reference. */

@@ -26,3 +26,30 @@ CREATE TABLE files (
   id INTEGER PRIMARY KEY,
   content BLOB
 );
+
+CREATE TABLE categories (
+  id INTEGER PRIMARY KEY,
+  parent_id INTEGER,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE tags (
+  id INTEGER PRIMARY KEY,
+  label TEXT NOT NULL
+);
+
+CREATE TABLE customer_tags (
+  customer_id TEXT NOT NULL,
+  tag_id INTEGER NOT NULL,
+  PRIMARY KEY (customer_id, tag_id)
+);
+
+CREATE TABLE notes (
+  id INTEGER PRIMARY KEY,
+  body TEXT NOT NULL,
+  slug TEXT
+);
+
+CREATE TRIGGER notes_slug_insert AFTER INSERT ON notes BEGIN UPDATE notes SET slug = lower(NEW.body) WHERE id = NEW.id; END;
+
+CREATE TRIGGER notes_slug_update AFTER UPDATE OF body ON notes BEGIN UPDATE notes SET slug = lower(NEW.body) WHERE id = NEW.id; END;

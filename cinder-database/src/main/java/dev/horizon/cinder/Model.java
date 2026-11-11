@@ -38,6 +38,17 @@ public interface Model<E> {
   List<Field<E, ?>> fields();
 
   /**
+   * Gives the fields that have no column, which a query fills with a value that it selects under the name of the
+   * field, such as {@code select("post_count", subquery(posts.query().on("author_id", "id").count()))}. No write
+   * sends them.
+   *
+   * @return the fields, in the order of the type. The default is none.
+   */
+  default List<Field<E, ?>> computed() {
+    return List.of();
+  }
+
+  /**
    * Gives the fields of the primary key.
    *
    * @return the fields, in the order of the key

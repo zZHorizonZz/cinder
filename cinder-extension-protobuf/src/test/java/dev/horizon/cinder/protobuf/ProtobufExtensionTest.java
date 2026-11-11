@@ -1,6 +1,7 @@
 package dev.horizon.cinder.protobuf;
 
 import static dev.horizon.basepoint.expression.Expression.key;
+import static dev.horizon.basepoint.expression.Expression.subquery;
 import static dev.horizon.basepoint.filter.Filter.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,12 +20,16 @@ import dev.horizon.cinder.Relation;
 import dev.horizon.cinder.Table;
 import dev.horizon.cinder.TypeCodec;
 import dev.horizon.cinder.protobuf.shop.Address;
+import dev.horizon.cinder.protobuf.shop.Category;
 import dev.horizon.cinder.protobuf.shop.Customer;
+import dev.horizon.cinder.protobuf.shop.CustomerTag;
 import dev.horizon.cinder.protobuf.shop.Ledger;
 import dev.horizon.cinder.protobuf.shop.Order;
 import dev.horizon.cinder.protobuf.shop.OrderLine;
+import dev.horizon.cinder.protobuf.shop.Shipment;
 import dev.horizon.cinder.protobuf.shop.Shop;
 import dev.horizon.cinder.protobuf.shop.State;
+import dev.horizon.cinder.protobuf.shop.Tag;
 import dev.horizon.cinder.protobuf.shop.Token;
 import dev.horizon.cinder.sqlite.SqliteDriver;
 import dev.horizon.leadseal.protobuf.BooleanColumn;
@@ -114,11 +119,19 @@ class ProtobufExtensionTest {
             + " label TEXT GENERATED ALWAYS AS (upper(customer_id)) VIRTUAL)",
         "CREATE TABLE order_line (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, product TEXT NOT NULL,"
             + " note TEXT NOT NULL)",
-        "CREATE TABLE tokens (id BLOB PRIMARY KEY, label TEXT NOT NULL)")) {
+        "CREATE TABLE tokens (id BLOB PRIMARY KEY, label TEXT NOT NULL)",
+        "CREATE TABLE categories (id INTEGER PRIMARY KEY, parent_id INTEGER, name TEXT NOT NULL)",
+        "CREATE TABLE shipments (id INTEGER PRIMARY KEY, billing_customer_id TEXT NOT NULL,"
+            + " shipping_customer_id TEXT NOT NULL)",
+        "CREATE TABLE tags (id INTEGER PRIMARY KEY, label TEXT NOT NULL)",
+        "CREATE TABLE customer_tags (customer_id TEXT NOT NULL, tag_id INTEGER NOT NULL,"
+            + " PRIMARY KEY (customer_id, tag_id))")) {
       pool.query(sql).execute().await(TIMEOUT);
     }
-    database = Database.builder(pool, new SqliteDriver()).extension(new ProtobufExtension()).extension(new Hidden())
-        .build();
+    database = Database.builder(pool, new SqliteDriver()).extension(new ProtobufExtension()
+        .join("shop.v1.Shipment.billing", "billing_customer_id")
+        .join("shop.v1.Shipment.shipping", "shipping_customer_id")
+        .through("shop.v1.Customer.tags", CustomerTag.getDefaultInstance())).extension(new Hidden()).build();
     orders = database.table(Order.getDefaultInstance());
     customers = database.table(Customer.getDefaultInstance());
     lines = database.table(OrderLine.getDefaultInstance());
@@ -132,7 +145,8 @@ class ProtobufExtensionTest {
 
   @BeforeEach
   void empty() throws TimeoutException {
-    for (String table : List.of("order_line", "orders", "customers", "tokens")) {
+    for (String table : List.of("order_line", "orders", "customers", "tokens", "categories", "shipments",
+        "customer_tags", "tags")) {
       pool.query("DELETE FROM " + table).execute().await(TIMEOUT);
     }
     customers.insert(Customer.newBuilder().setId("anne").setEmail("anne@example.com").build()).await(TIMEOUT);
@@ -330,5 +344,76 @@ class ProtobufExtensionTest {
   void filled(String name, ColumnOptions column, boolean generated, boolean defaulted) {
     assertThat(ProtobufLeadsealAdapter.isGenerated(column)).isEqualTo(generated);
     assertThat(ProtobufLeadsealAdapter.hasDefault(column)).isEqualTo(defaulted);
+  }
+
+  @Test
+  @DisplayName("Reads a computed field, an ignored field that is no relation")
+  void computed() throws TimeoutException {
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.OPEN).build()).await(TIMEOUT);
+    orders.insert(Order.newBuilder().setCustomerId("anne").setState(State.PAID).build()).await(TIMEOUT);
+
+    Customer anne = customers.single(customers.query().select("order_count", subquery(orders.query()
+        .on("customer_id", "id").count()))).await(TIMEOUT);
+
+    assertThat(anne.getOrderCount()).isEqualTo(2L);
+  }
+
+  @Test
+  @DisplayName("Reads the parent and the children of a relation to its own table")
+  void selfRelation() throws TimeoutException {
+    Table<Category> categories = database.table(Category.getDefaultInstance());
+    categories.insert(List.of(Category.newBuilder().setId(1).setName("clothing").build(), Category.newBuilder()
+        .setId(2).setParentId(1).setName("shirts").build())).await(TIMEOUT);
+
+    Category shirts = categories.single(categories.query().where(eq("id", 2L)).includeOne("parent", categories
+        .related("parent"))).await(TIMEOUT);
+    Category clothing = categories.single(categories.query().where(eq("id", 1L)).include("children", categories
+        .related("children"))).await(TIMEOUT);
+
+    assertThat(shirts.getParent().getName()).isEqualTo("clothing");
+    assertThat(clothing.getChildrenList()).extracting(Category::getName).containsExactly("shirts");
+  }
+
+  @Test
+  @DisplayName("Reads two relations to one table by the foreign keys that the extension names")
+  void namedJoins() throws TimeoutException {
+    customers.insert(Customer.newBuilder().setId("beth").setEmail("beth@example.com").build()).await(TIMEOUT);
+    Table<Shipment> shipments = database.table(Shipment.getDefaultInstance());
+    shipments.insert(Shipment.newBuilder().setId(1).setBillingCustomerId("anne").setShippingCustomerId("beth")
+        .build()).await(TIMEOUT);
+
+    Shipment shipment = shipments.single(shipments.query().includeOne("billing", shipments.related("billing"))
+        .includeOne("shipping", shipments.related("shipping"))).await(TIMEOUT);
+
+    assertThat(shipment.getBilling().getEmail()).isEqualTo("anne@example.com");
+    assertThat(shipment.getShipping().getEmail()).isEqualTo("beth@example.com");
+  }
+
+  @Test
+  @DisplayName("Reads the rows of a relation through the link table that the extension names")
+  void linkTable() throws TimeoutException {
+    database.table(Tag.getDefaultInstance()).insert(List.of(Tag.newBuilder().setId(1).setLabel("loyal").build(),
+        Tag.newBuilder().setId(2).setLabel("new").build())).await(TIMEOUT);
+    database.table(CustomerTag.getDefaultInstance()).insert(CustomerTag.newBuilder().setCustomerId("anne")
+        .setTagId(2).build()).await(TIMEOUT);
+
+    Customer anne = customers.single(customers.query().include("tags", customers.related("tags"))).await(TIMEOUT);
+
+    assertThat(anne.getTagsList()).extracting(Tag::getLabel).containsExactly("new");
+  }
+
+  @Test
+  @DisplayName("Refuses a model whose relation has two foreign keys, or none, until the extension names them")
+  void refuseRelation() {
+    Database plain = Database.builder(pool, new SqliteDriver()).extension(new ProtobufExtension()).build();
+
+    assertThatThrownBy(() -> plain.model(Shipment.getDefaultInstance())).isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The relation shop.v1.Shipment.billing needs one foreign key between shop.v1.Shipment and"
+            + " shop.v1.Customer, but there are 2. Name the fields of its foreign key with new ProtobufExtension()"
+            + ".join(\"shop.v1.Shipment.billing\", \"field\").");
+    assertThatThrownBy(() -> plain.model(Customer.getDefaultInstance())).isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("The relation shop.v1.Customer.tags needs one foreign key between shop.v1.Customer and"
+            + " shop.v1.Tag, but there are 0. For a relation through a link table, name the table with new"
+            + " ProtobufExtension().through(\"shop.v1.Customer.tags\", Link.getDefaultInstance()).");
   }
 }

@@ -26,3 +26,28 @@ CREATE TABLE files (
   id BIGINT PRIMARY KEY,
   content VARBINARY(MAX)
 );
+
+CREATE TABLE categories (
+  id BIGINT PRIMARY KEY,
+  parent_id BIGINT NULL,
+  name NVARCHAR(50) NOT NULL
+);
+
+CREATE TABLE tags (
+  id BIGINT PRIMARY KEY,
+  label NVARCHAR(50) NOT NULL
+);
+
+CREATE TABLE customer_tags (
+  customer_id NVARCHAR(20) NOT NULL,
+  tag_id BIGINT NOT NULL,
+  PRIMARY KEY (customer_id, tag_id)
+);
+
+CREATE TABLE notes (
+  id BIGINT IDENTITY(1, 1) PRIMARY KEY,
+  body NVARCHAR(100) NOT NULL,
+  slug NVARCHAR(100) NULL
+);
+
+CREATE TRIGGER notes_slug ON notes AFTER INSERT, UPDATE AS BEGIN SET NOCOUNT ON; IF TRIGGER_NESTLEVEL(@@PROCID) > 1 RETURN; UPDATE n SET slug = LOWER(n.body) FROM notes n JOIN inserted i ON n.id = i.id; END;

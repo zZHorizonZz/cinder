@@ -38,7 +38,7 @@ final class DeferredRowStream implements ReadStream<Row> {
     }
 
     Future<Void> close(Throwable failure) {
-      return cursor.rows().close().transform(closed -> cursor.prepared().close()).transform(closed -> finish
+      return cursor.rows().close().transform(close -> cursor.prepared().close()).transform(close -> finish
           .apply(failure));
     }
   }

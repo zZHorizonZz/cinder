@@ -31,7 +31,8 @@ public abstract class ContractTest {
   protected static final Instant FIRST = Instant.parse("2026-01-01T10:00:00Z");
   protected static final Duration TIMEOUT = Duration.ofSeconds(10);
 
-  private static final List<String> TABLES = List.of("files", "items", "orders", "customers");
+  private static final List<String> TABLES = List.of("notes", "customer_tags", "tags", "categories", "files", "items", "orders",
+      "customers");
 
   protected Driver driver;
   protected Vertx vertx;

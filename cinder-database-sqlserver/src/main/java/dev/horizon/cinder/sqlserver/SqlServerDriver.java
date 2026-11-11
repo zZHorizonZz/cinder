@@ -3,18 +3,25 @@ package dev.horizon.cinder.sqlserver;
 import dev.horizon.aquery.ParameterStyle;
 import dev.horizon.basepoint.Dialect;
 import dev.horizon.basepoint.sqlserver.SqlServerDialect;
+import dev.horizon.basepoint.statement.Clause;
+import dev.horizon.basepoint.statement.InsertInto;
+import dev.horizon.basepoint.statement.Statement;
 import dev.horizon.cinder.Driver;
 import dev.horizon.cinder.TransactionOptions;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.sqlclient.DatabaseException;
 import io.vertx.sqlclient.data.NullValue;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * The driver of SQL Server, on the SQL Server client of Vert.x. It binds times as {@code DATETIME2} values in UTC, and
@@ -32,11 +39,44 @@ public final class SqlServerDriver implements Driver {
   private static final int UNIQUE_KEY_VIOLATION = 2627;
   private static final String DEFAULT_ISOLATION = "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
 
+  private static final Map<Class<?>, String> KEY_TYPES = Map.of(Long.class, "BIGINT", Integer.class, "INT",
+      Short.class, "SMALLINT", String.class, "NVARCHAR(4000)", UUID.class, "UNIQUEIDENTIFIER", byte[].class,
+      "VARBINARY(MAX)", BigDecimal.class, "DECIMAL(38, 10)", LocalDate.class, "DATE", Instant.class, "DATETIME2(7)");
+
   private final Dialect dialect = new SqlServerDialect(ParameterStyle.AT_P);
 
   @Override
   public Dialect dialect() {
     return dialect;
+  }
+
+  @Override
+  public boolean returnsWrittenRows() {
+    return false;
+  }
+
+  @Override
+  public Statement returningKeys(Statement insert, List<Key> key) {
+    List<KeyColumn> columns = key.stream().map(column -> new KeyColumn(column.column(), sqlType(column))).toList();
+    List<Clause> clauses = new ArrayList<>();
+    clauses.add(new DeclareKeys(columns));
+    for (Clause clause : insert.clauses()) {
+      clauses.add(clause);
+      if (clause instanceof InsertInto) {
+        clauses.add(new OutputKeys(columns));
+      }
+    }
+    clauses.add(new SelectKeys(columns));
+    return new Statement(insert.source(), clauses);
+  }
+
+  private static String sqlType(Key column) {
+    String type = KEY_TYPES.get(column.type());
+    if (type == null) {
+      throw new IllegalArgumentException("The key column " + column.column() + " holds "
+          + column.type().getSimpleName() + ", which an insert cannot give back on SQL Server.");
+    }
+    return type;
   }
 
   @Override

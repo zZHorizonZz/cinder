@@ -32,15 +32,16 @@ rows by their key, so every table needs one.
 ## The relation ... needs one foreign key between ...
 
 ```text
-java.lang.IllegalArgumentException: The relation shop.v1.Order.items needs one foreign key between shop.v1.Order and shop.v1.OrderItem, but there are 0.
+java.lang.IllegalArgumentException: The relation shop.v1.Shipment.billing needs one foreign key between shop.v1.Shipment and shop.v1.Customer, but there are 2. Name the fields of its foreign key with new ProtobufExtension().join("shop.v1.Shipment.billing", "field").
 ```
 
 **Cause:** A field whose type is another table message, with the `ignore` option, and no foreign key between the two
 messages, or more than one. The foreign key tells which fields join the rows.
 
-**Fix:** Give the field of the other table the `foreign_key` option, such as
-`int64 order_id = 2 [(leadseal.v1.column).foreign_key = {message: "shop.v1.Order"}]`. With more than one foreign key
-between the two messages, keep one, or map the relation by hand with a model source of your own.
+**Fix:** With two or more foreign keys, name the one of the relation with `join`. With none, give the field of the
+other table the `foreign_key` option, such as `int64 order_id = 2 [(leadseal.v1.column).foreign_key = {message:
+"shop.v1.Order"}]`, or, for a relation of many to many, name its link table with `through`. See
+[Map protobuf messages](map-protobuf-messages.md#name-the-joins-of-relations).
 
 **Verify:** `database.model(Order.getDefaultInstance()).relation("items")` is present.
 

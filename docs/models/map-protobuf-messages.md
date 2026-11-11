@@ -83,6 +83,30 @@ orders.single(orders.query().where(eq("id", 42L))
 It prints the email of the customer and the number of items. A message without a primary key, or a relation without
 one foreign key, fails as [Troubleshooting models](troubleshooting-models.md) describes.
 
+## Read computed fields
+
+An ignored field that is not a relation, such as `int64 order_count = 3 [(leadseal.v1.column).ignore = true]`, has no
+column. A query fills it by selecting a value under its name, as
+[Read rows](../reads/read-rows.md#read-computed-values) shows, and no write sends it.
+
+## Name the joins of relations
+
+A relation to the same message, such as `Category parent` and `repeated Category children` over one foreign key
+`parent_id`, joins by its shape: a relation of one reads the row that its foreign key names, and a relation of many
+the rows whose foreign key names it.
+
+Where two foreign keys lead to the same message, name the one of each relation. For a relation of many to many,
+name its link table, a table message with one foreign key to each side:
+
+```java
+Database database = Database.builder(pool, new PostgresDriver())
+    .extension(new ProtobufExtension()
+        .join("shop.v1.Shipment.billing", "billing_customer_id")
+        .join("shop.v1.Shipment.shipping", "shipping_customer_id")
+        .through("shop.v1.Customer.tags", CustomerTag.getDefaultInstance()))
+    .build();
+```
+
 ## Leave values to the database
 
 The protobuf extension gives each model a part, `ProtobufLeadsealAdapter`, that leaves the columns that the database fills to

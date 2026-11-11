@@ -42,7 +42,8 @@ import static dev.horizon.basepoint.filter.Filter.*;
    ```
 
    `single` fails with a `NoSuchElementException` if the query has no row, and an `IllegalStateException` if it has
-   more than one. `count` and `exists` read the filter of the query, not its order or its limit.
+   more than one. `count` and `exists` read the whole query, with its relations, groups and distinct values,
+   without its order, limit and offset.
 
 ## Verify
 
@@ -62,6 +63,9 @@ Query requested = orders.query(request.getFilter(), request.getOrderBy());
 
 A value of a text filter must be a value of its field. A filter such as `total_cents = 10.5` fails with an
 `IllegalArgumentException`.
+
+A pattern, such as `startsWith`, `contains` or `like`, matches the text that a column holds, so it fails on a text
+field whose codecs change its text, such as an encrypted one.
 
 A field that the database stores as a JSON object, such as a protobuf map or message, can be filtered by one of its
 keys, whose values compare as text: `labels.env = "prod"`, or `eq(key("labels", "env"), "prod")`. `labels:env` finds
@@ -98,9 +102,54 @@ Future<List<Order>> masked = orders.list(orders.table().query(ReadMask.parse(Str
     request.getReadMask().getPathsList()))));
 ```
 
+## Read computed values
+
+A query can select a value under the name of a computed field of the model, a field without a column, which the
+value then fills. For protobuf messages, an ignored field that is not a relation is a computed field. See
+[Map protobuf messages](../models/map-protobuf-messages.md#read-computed-fields).
+
+```java
+Expression orderCount = subquery(orders.query().on("customer_id", "id").count());
+
+Future<List<Customer>> loyal = customers.list(customers.query()
+    .select("order_count", orderCount)
+    .where(gt(orderCount, 3))
+    .orderBy("order_count", DESC));
+```
+
+A filter repeats the expression, because `WHERE` cannot read a value of `SELECT`. A value under the name of a stored
+field, or of no field, fails the read: the entity would lose it. Read such values with `rows`.
+
+## Read with statements of other tables
+
+A filter, a value or a relation can be a statement of another table: `exists`, `subquery`, `relation` and its paths,
+such as `column("orders", "create_time")`, and a WITH query. Cinder maps the fields of each statement with the model
+of its table, and sends its values through the codecs of that model:
+
+```java
+customers.list(customers.query().where(exists(orders.query().on("customer_id", "id")
+    .where(gt("create_time", since)))));
+customers.list(customers.query().relation("orders", orders.query().on("customer_id", "id"))
+    .where(gt(column("orders", "create_time"), since)));
+```
+
+Start a statement of another table from the table of its model, such as `orders.query()`, so that the database knows
+its model.
+
+## Combine queries
+
+A union, an intersect or an except of queries of the table reads entities as one query does:
+
+```java
+orders.list(orders.query().where(eq("customer_id", "anne")).union(orders.query().where(gt("total_cents", 10_000))));
+```
+
+A page continues one query, so it refuses a combined one.
+
 ## Aggregate rows
 
-Run a query of aggregates with `rows`, which gives the rows as the database gives them:
+A query that groups its rows reads the fields that it groups by, and its computed fields. For any other value, run
+the query with `rows`, which gives the rows as the database gives them:
 
 ```java
 Future<RowSet<Row>> totals = orders.table().rows(orders.query()

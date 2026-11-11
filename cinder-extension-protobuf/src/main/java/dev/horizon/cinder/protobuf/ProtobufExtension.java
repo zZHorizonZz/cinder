@@ -7,7 +7,9 @@ import dev.horizon.cinder.ModelSource;
 import dev.horizon.cinder.Part;
 import dev.horizon.cinder.TypeCodec;
 import dev.horizon.leadseal.protobuf.OptionsProto;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -29,6 +31,45 @@ import java.util.Optional;
 public final class ProtobufExtension implements Extension, ModelSource {
 
   private final ProtobufCodec codec = new ProtobufCodec();
+  private final Map<String, List<String>> joins;
+  private final Map<String, Message> links;
+
+  public ProtobufExtension() {
+    this(Map.of(), Map.of());
+  }
+
+  private ProtobufExtension(Map<String, List<String>> joins, Map<String, Message> links) {
+    this.joins = Map.copyOf(joins);
+    this.links = Map.copyOf(links);
+  }
+
+  /**
+   * Gives this extension with the foreign key of a relation named, for a relation to a table that has more than one
+   * foreign key between the two, such as the billing and the shipping customer of an order.
+   *
+   * @param relation the full name of the relation field, such as {@code shop.v1.Order.billing}
+   * @param fields the fields of the foreign key, on either message, such as {@code billing_customer_id}
+   * @return the extension with the relation named
+   */
+  public ProtobufExtension join(String relation, String... fields) {
+    Map<String, List<String>> more = new LinkedHashMap<>(joins);
+    more.put(relation, List.of(fields));
+    return new ProtobufExtension(more, links);
+  }
+
+  /**
+   * Gives this extension with the link table of a relation named, for a relation of many to many, such as the tags
+   * of a customer. The link table has one foreign key to each side.
+   *
+   * @param relation the full name of the relation field, such as {@code shop.v1.Customer.tags}
+   * @param link an entity of the link table, such as {@code CustomerTag.getDefaultInstance()}
+   * @return the extension with the link table named
+   */
+  public ProtobufExtension through(String relation, Message link) {
+    Map<String, Message> more = new LinkedHashMap<>(links);
+    more.put(relation, link.getDefaultInstanceForType());
+    return new ProtobufExtension(joins, more);
+  }
 
   @Override
   public List<ModelSource> models() {
@@ -72,6 +113,6 @@ public final class ProtobufExtension implements Extension, ModelSource {
       return Optional.empty();
     }
     Message empty = message.getDefaultInstanceForType();
-    return Optional.of((Model<E>) new ProtobufModel(empty.getClass(), empty));
+    return Optional.of((Model<E>) new ProtobufModel(empty.getClass(), empty, joins, links));
   }
 }

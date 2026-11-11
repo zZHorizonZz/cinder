@@ -15,6 +15,15 @@ packages. The database asks the sources of its extensions in order, and uses the
 extension is the model source of messages with the `leadseal.v1.table` option. See
 [Map protobuf messages](map-protobuf-messages.md).
 
+## Computed fields and relations
+
+A model can have fields without a column, `Model.computed()`, which a query fills by selecting a value under their
+name. No write sends them. See [Read rows](../reads/read-rows.md#read-computed-values).
+
+A `Relation` joins the rows of a table to those of another by their fields, or through a link table, a
+`Relation.Link`, such as the tags of a customer through `customer_tags`. A relation to the same table, such as the
+parent of a category, works as any other.
+
 ## Backends
 
 A `Backend<E, K>` gives an entity of its type and its database:

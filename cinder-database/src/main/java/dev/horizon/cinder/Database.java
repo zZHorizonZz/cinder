@@ -5,18 +5,10 @@ import dev.horizon.basepoint.Dialect;
 import dev.horizon.basepoint.RenderedStatement;
 import dev.horizon.basepoint.statement.Decorator;
 import dev.horizon.basepoint.statement.Statement;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.internal.ContextInternal;
-import io.vertx.core.streams.ReadStream;
 import io.vertx.sqlclient.Pool;
-import io.vertx.sqlclient.Row;
-import io.vertx.sqlclient.RowSet;
-import io.vertx.sqlclient.SqlClient;
-import io.vertx.sqlclient.SqlConnection;
-import io.vertx.sqlclient.Tuple;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +20,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 
@@ -43,7 +34,7 @@ import javax.crypto.SecretKey;
  *
  * <p>
  * An operation runs in the transaction of the current Vert.x context, when {@link #transaction} started one.
- * Otherwise each of its statements commits as it runs. A transaction started off every Vert.x context runs on the
+ * Otherwise each of its statements commits as it runs. A transaction started outside a Vert.x context runs on the
  * context of the connections of the pool.
  */
 public final class Database {
@@ -152,34 +143,16 @@ public final class Database {
    */
   public <T> Future<T> transaction(TransactionOptions options, Function<Transaction, Future<T>> work) {
     ContextInternal context = (ContextInternal) Vertx.currentContext();
-    if (context == null) {
-      return pool.getConnection().compose(connection -> connection.close().compose(closed -> {
-        ContextInternal own = (ContextInternal) Vertx.currentContext();
-        return own == null ? Future.failedFuture(new IllegalStateException("The pool gives its connections on no"
-            + " Vert.x context, so a transaction has no context to run on.")) : transaction(own, options, work);
-      }));
+    if (context != null) {
+      return Transaction.run(context, pool, driver, options, work);
     }
-    return transaction(context, options, work);
-  }
-
-  /**
-   * Closes the database. The pool stays open, for the caller that made it to close.
-   *
-   * @return a future that completes when the database is closed
-   */
-  public Future<Void> close() {
-    return Future.succeededFuture();
-  }
-
-  /**
-   * Gives the future of work that can throw, with what it throws as the failure.
-   */
-  static <T> Future<T> attempt(Supplier<Future<T>> work) {
-    try {
-      return work.get();
-    } catch (RuntimeException failed) {
-      return Future.failedFuture(failed);
-    }
+    return pool.getConnection().compose(connection -> connection.close().compose(close -> {
+      ContextInternal own = (ContextInternal) Vertx.currentContext();
+      return own == null ? Future.failedFuture(new IllegalStateException("The pool gives its connections on no"
+          + " Vert.x context, so a transaction has no context to run on."))
+          : Transaction.run(own, pool, driver,
+              options, work);
+    }));
   }
 
   @SuppressWarnings("unchecked")
@@ -192,8 +165,32 @@ public final class Database {
     return mapping(model(prototype));
   }
 
+  /**
+   * Gives the mapping of the model of a table, for a statement inside another, which names its table and not its
+   * model.
+   */
+  Mapping<?> mappingOf(String table) {
+    List<Mapping<?>> found = mappings.values().stream().filter(mapping -> mapping.model().table().equals(table))
+        .<Mapping<?>> map(mapping -> mapping).toList();
+    if (found.size() == 1) {
+      return found.getFirst();
+    }
+    throw new IllegalArgumentException(found.isEmpty() ? "No model of the database has the table " + table
+        + ". Start the query of the table from the table of its model, such as database.table(prototype).query()."
+        : "Several models of the database have the table " + table + ", so a statement of the table names none of"
+            + " them.");
+  }
+
+  Pool pool() {
+    return pool;
+  }
+
   Driver driver() {
     return driver;
+  }
+
+  List<Interceptor> interceptors() {
+    return interceptors;
   }
 
   Dialect dialect() {
@@ -212,83 +209,8 @@ public final class Database {
     return clock.instant().truncatedTo(ChronoUnit.MICROS);
   }
 
-  Transaction current() {
-    ContextInternal context = (ContextInternal) Vertx.currentContext();
-    return context == null ? null : active(context);
-  }
-
   RenderedStatement render(Statement statement) {
     return dialect.render(statement);
-  }
-
-  Future<RowSet<Row>> run(Model<?> model, Invocation.Kind kind, Statement statement) {
-    return attempt(() -> {
-      Transaction transaction = current();
-      SqlClient client = transaction == null ? pool : transaction.connection();
-      return intercept(new Invocation<RowSet<Row>>(kind, model, render(statement)), 0, invocation -> client
-          .preparedQuery(invocation.statement().text()).execute(Tuple.from(invocation.statement().params())));
-    }).recover(failure -> Future.failedFuture(driver.duplicateKey(failure) ? new DuplicateKeyException(model,
-        failure.getMessage(), failure) : failure));
-  }
-
-  ReadStream<Row> stream(Model<?> model, Statement statement, int fetch) {
-    if (fetch < 1) {
-      throw new IllegalArgumentException("A stream fetches at least one row at a time, not " + fetch + ".");
-    }
-    return new DeferredRowStream(() -> attempt(() -> {
-      Invocation<DeferredRowStream.Cursor> invocation = new Invocation<>(Invocation.Kind.QUERY, model,
-          render(statement));
-      Transaction current = current();
-      if (current != null) {
-        return intercept(invocation, 0, done -> open(current.connection(), done, fetch))
-            .map(cursor -> new DeferredRowStream.Source(cursor, failure -> Future.succeededFuture()));
-      }
-      TransactionOptions options = TransactionOptions.defaults().withReadOnly(true);
-      return pool.getConnection().compose(connection -> {
-        Transaction transaction = new Transaction((ContextInternal) Vertx.currentContext(), connection, options,
-            null);
-        return sql(connection, driver.begin(options)).compose(begun -> intercept(invocation, 0, done -> open(
-            connection, done, fetch))).map(cursor -> new DeferredRowStream.Source(cursor,
-                failure -> end(transaction,
-                    failure == null ? Future.succeededFuture() : Future.failedFuture(failure)).<Void> mapEmpty()
-                    .eventually(connection::close)))
-            .recover(failure -> end(transaction, Future.failedFuture(failure)).eventually(connection::close)
-                .transform(ended -> Future.failedFuture(failure)));
-      });
-    }));
-  }
-
-  private <T> Future<T> transaction(ContextInternal context, TransactionOptions options,
-      Function<Transaction, Future<T>> work) {
-    Transaction current = active(context);
-    Future<T> result = current == null ? begin(context, options, work) : savepoint(context, current, work);
-    Promise<T> promise = context.promise();
-    result.onComplete(promise);
-    return promise.future();
-  }
-
-  private static Transaction active(ContextInternal context) {
-    Transaction transaction = context.getLocal(TransactionLocal.KEY);
-    return transaction == null || transaction.ended() ? null : transaction;
-  }
-
-  private Future<Void> sql(SqlConnection connection, List<String> statements) {
-    Future<Void> done = Future.succeededFuture();
-    for (String statement : statements) {
-      done = done.compose(previous -> connection.query(statement).execute().mapEmpty());
-    }
-    return done;
-  }
-
-  private Future<DeferredRowStream.Cursor> open(SqlConnection connection,
-      Invocation<DeferredRowStream.Cursor> invocation, int fetch) {
-    return connection.prepare(invocation.statement().text()).map(prepared -> new DeferredRowStream.Cursor(prepared,
-        prepared.createStream(fetch, Tuple.from(invocation.statement().params()))));
-  }
-
-  private <R> Future<R> intercept(Invocation<R> invocation, int index, Function<Invocation<R>, Future<R>> last) {
-    return attempt(() -> index == interceptors.size() ? last.apply(invocation)
-        : interceptors.get(index).intercept(invocation, next -> intercept(next, index + 1, last)));
   }
 
   private <E> Model<E> find(E prototype) {
@@ -303,75 +225,6 @@ public final class Database {
     throw new IllegalArgumentException("No model source of the database knows the type "
         + prototype.getClass().getName() + ". Add the extension of its models, such as the protobuf extension for"
         + " messages.");
-  }
-
-  private <T> Future<T> begin(ContextInternal context, TransactionOptions options,
-      Function<Transaction, Future<T>> work) {
-    ContextInternal duplicate = context.duplicate();
-    Promise<T> promise = duplicate.promise();
-    duplicate.runOnContext(ignored -> pool.getConnection().compose(connection -> {
-      Transaction transaction = new Transaction(duplicate, connection, options, null);
-      return sql(connection, driver.begin(options))
-          .compose(begun -> within(transaction, work).transform(result -> end(transaction, result)))
-          .eventually(connection::close);
-    }).onComplete(promise));
-    return promise.future();
-  }
-
-  private <T> Future<T> savepoint(ContextInternal context, Transaction parent,
-      Function<Transaction, Future<T>> work) {
-    String name = parent.nextSavepoint();
-    SqlConnection connection = parent.connection();
-    Transaction savepoint = new Transaction(context.duplicate(), connection, parent.options(), parent);
-    return sql(connection, List.of(driver.savepoint(name))).compose(started -> within(savepoint, work)
-        .transform(result -> {
-          if (result.succeeded() && !savepoint.isRollbackOnly()) {
-            return sql(connection, driver.release(name).map(List::of).orElse(List.of())).map(released -> {
-              savepoint.close();
-              parent.adopt(savepoint);
-              return result.result();
-            });
-          }
-          return sql(connection, List.of(driver.rollbackTo(name))).transform(rolled -> {
-            savepoint.close();
-            savepoint.rolledBack();
-            return rolled.failed() ? Future.failedFuture(rolled.cause()) : outcome(result);
-          });
-        }));
-  }
-
-  private <T> Future<T> within(Transaction transaction, Function<Transaction, Future<T>> work) {
-    ContextInternal context = transaction.context();
-    context.putLocal(TransactionLocal.KEY, transaction);
-    Promise<T> promise = context.promise();
-    context.runOnContext(ignored -> attempt(() -> work.apply(transaction)).onComplete(promise));
-    return promise.future();
-  }
-
-  private <T> Future<T> end(Transaction transaction, AsyncResult<T> result) {
-    SqlConnection connection = transaction.connection();
-    if (result.succeeded() && !transaction.isRollbackOnly()) {
-      return sql(connection, List.of(driver.commit())).transform(committed -> sql(connection,
-          driver.end(transaction.options())).transform(ended -> {
-            transaction.close();
-            if (committed.failed()) {
-              transaction.rolledBack();
-              return Future.failedFuture(committed.cause());
-            }
-            transaction.committed();
-            return Future.succeededFuture(result.result());
-          }));
-    }
-    return sql(connection, List.of(driver.rollback())).transform(rolled -> sql(connection,
-        driver.end(transaction.options()))).transform(ended -> {
-          transaction.close();
-          transaction.rolledBack();
-          return outcome(result);
-        });
-  }
-
-  private static <T> Future<T> outcome(AsyncResult<T> result) {
-    return result.succeeded() ? Future.succeededFuture(result.result()) : Future.failedFuture(result.cause());
   }
 
   /**

@@ -16,6 +16,42 @@ public abstract class ContractSuite {
   }
 
   @Nested
+  class Computed extends ComputedContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
+  class Inner extends InnerContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
+  class Trigger extends TriggerContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
+  class Relation extends RelationContractTest {
+
+    @Override
+    protected TestDatabase testDatabase() {
+      return ContractSuite.this.testDatabase();
+    }
+  }
+
+  @Nested
   class Input extends InputContractTest {
 
     @Override
