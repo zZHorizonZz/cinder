@@ -1,6 +1,3 @@
-/**
- * The PostgreSQL driver of Cinder.
- */
 module dev.horizon.cinder.postgres {
   requires transitive dev.horizon.cinder;
   requires transitive dev.horizon.basepoint.postgres;

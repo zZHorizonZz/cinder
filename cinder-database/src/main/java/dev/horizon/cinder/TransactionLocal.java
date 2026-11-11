@@ -12,12 +12,6 @@ public final class TransactionLocal implements VertxServiceProvider {
 
   static final ContextLocal<Transaction> KEY = ContextLocal.registerLocal(Transaction.class);
 
-  /**
-   * Gives the provider, which Vert.x finds with a service loader. Nothing else needs it.
-   */
-  public TransactionLocal() {
-  }
-
   @Override
   public void init(VertxBootstrap builder) {
   }

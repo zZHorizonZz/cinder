@@ -21,12 +21,6 @@ public final class PostgresDriver implements Driver {
 
   private final Dialect dialect = new PostgresDialect(ParameterStyle.DOLLAR);
 
-  /**
-   * Gives the driver, to build a database with.
-   */
-  public PostgresDriver() {
-  }
-
   @Override
   public Dialect dialect() {
     return dialect;

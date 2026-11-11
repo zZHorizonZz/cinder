@@ -32,12 +32,6 @@ public final class SqliteDriver implements Driver {
 
   private final Dialect dialect = new SqliteDialect(ParameterStyle.QUESTION_MARK);
 
-  /**
-   * Gives the driver, to build a database with.
-   */
-  public SqliteDriver() {
-  }
-
   @Override
   public Dialect dialect() {
     return dialect;

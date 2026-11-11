@@ -1,6 +1,3 @@
-/**
- * The SQL Server driver of Cinder.
- */
 module dev.horizon.cinder.sqlserver {
   requires transitive dev.horizon.cinder;
   requires transitive dev.horizon.basepoint.sqlserver;

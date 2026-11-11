@@ -1,6 +1,3 @@
-/**
- * The SQLite driver of Cinder.
- */
 module dev.horizon.cinder.sqlite {
   requires transitive dev.horizon.cinder;
   requires transitive dev.horizon.basepoint.sqlite;

@@ -49,11 +49,6 @@ public sealed interface Conflict {
    */
   record Ignore(List<String> target) implements Conflict {
 
-    /**
-     * Keeps a copy of the target.
-     *
-     * @param target the fields whose values conflict, or none for the primary key
-     */
     public Ignore {
       target = List.copyOf(target);
     }
@@ -72,12 +67,6 @@ public sealed interface Conflict {
    */
   record Merge(List<String> target, List<String> fields) implements Conflict {
 
-    /**
-     * Keeps copies of the target and the fields.
-     *
-     * @param target the fields whose values conflict, or none for the primary key
-     * @param fields the fields to update, or none for every field but those of the target
-     */
     public Merge {
       target = List.copyOf(target);
       fields = List.copyOf(fields);

@@ -1,6 +1,3 @@
-/**
- * Cinder: the rows of a database as entities, on the SQL clients of Vert.x and the statements of Basepoint.
- */
 module dev.horizon.cinder {
   requires transitive dev.horizon.basepoint;
   requires transitive io.vertx.core;

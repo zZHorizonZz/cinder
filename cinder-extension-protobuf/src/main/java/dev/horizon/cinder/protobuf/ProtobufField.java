@@ -23,14 +23,6 @@ public final class ProtobufField<M extends Message> implements Field<M, Object> 
   private final ColumnOptions options;
   private final Map<String, Object> attributes;
 
-  /**
-   * Maps a field.
-   *
-   * @param descriptor the field
-   * @param prototype the default instance of the message, for the builders of the values of the field
-   * @param options the column options of the field
-   * @param attributes the custom options of the field, by full name
-   */
   ProtobufField(FieldDescriptor descriptor, M prototype, ColumnOptions options, Map<String, Object> attributes) {
     this.descriptor = descriptor;
     this.prototype = prototype;

@@ -5,8 +5,7 @@ package dev.horizon.cinder;
  */
 public final class DuplicateKeyException extends RuntimeException {
 
-  /** The model of the table whose key the row repeats. */
-  private final transient Model<?> model;
+  private final Model<?> model;
 
   /**
    * Gives the failure of an insert.

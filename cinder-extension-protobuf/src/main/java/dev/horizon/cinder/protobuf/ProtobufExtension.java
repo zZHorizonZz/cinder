@@ -30,12 +30,6 @@ public final class ProtobufExtension implements Extension, ModelSource {
 
   private final ProtobufCodec codec = new ProtobufCodec();
 
-  /**
-   * Gives the extension, to add to the builder of a database.
-   */
-  public ProtobufExtension() {
-  }
-
   @Override
   public List<ModelSource> models() {
     return List.of(this);
